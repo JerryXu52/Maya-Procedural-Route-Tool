@@ -47,3 +47,37 @@ A Qt UI where selecting two objects generates a Sweep Mesh cable whose ends foll
 
 ### 7. The riskiest part
 Getting the cable to leave a picked vertex or face cleanly along its normal and stay attached while the mesh deforms — and keeping sag live alongside waypoints without the curve kinking. Moving to Sweep Mesh and `decomposeMatrix` removes the original risk (unstable history from extrusion and cluster rigs), so the remaining risk sits in the component-attachment math.
+
+### 8. Thought process: building on my previous tool
+In September I built `CableHoseRigTool.py`, a one-shot cable generator: it computed every point in Python and built meshes with no history, so any change meant clearing and regenerating. This midterm turns that idea into a **live, node-based** tool. I reviewed the old tool to decide what to keep, what to drop, and what to fix.
+
+**What I'm carrying over — UI**
+- A scrolling settings panel above a **pinned footer**, so `Generate`, `Clear` and the status box never scroll out of reach.
+- **Collapsible sections** (Route, Shape, Hardware, UVs, Shading).
+- A colour-coded **status box** (`[OK]` / `[WARNING]` / `[ERROR]`) at a fixed height, mirrored to the Script Editor.
+- **Actionable messages** that tell the artist how to fix a problem, not just that one exists.
+- Sliders with a comfortable range plus a typed field with a hard safety cap; a tooltip on every control.
+- Edit/Help menus, `Reset Settings`, and only one tool window open at a time.
+
+**What I'm carrying over — functionality**
+- **One undo chunk per action** in `try/finally`; for live sliders, one chunk per drag so a whole drag undoes with one Ctrl+Z.
+- **Two-level error handling:** a custom error for limits I enforce, plus a catch-all at the UI layer, so Maya never sees an unhandled exception.
+- **Input sanitising** of every UI value (empty values, text, NaN and infinity).
+- **Selection checks** that report ignored items and catch anchors sitting on top of each other — extended to vertices and faces.
+- **Sag scaled by span length**, so the slider feels the same at any scene scale — now live through a `distanceBetween` node.
+- **Catenary shape, made live:** per-point catenary weights are computed once at build time; the node network does weight × sag × span length, so the cable keeps a real hanging-chain shape with no Python running per frame.
+- One shared shader, a single top-level group, and the guide curve kept in the scene (now as the live driver).
+- Chaining spans across several picks grows into true **waypoint routing** along one continuous curve.
+- My command-port remote launcher, kept as a separate `launch.py` for development.
+
+**What I'm leaving behind**
+- Hand-built coordinate frames — Sweep Mesh orients the tube itself.
+- Extrude / cylinder fallback with history turned off — the opposite of a live design. If the `sweep` plugin won't load, the tool shows a clear error.
+- Collision relaxation and spatial hashing — they run after the build and can't keep up with a live rig. Sunflower packing may return with the bundle stretch goal.
+- Assignment-specific features (Beta mode, Length Stagger, Slack Variation).
+
+**What I'm fixing**
+- **Selection order:** waypoints use `cmds.ls(orderedSelection=True)` so the cable follows the order I clicked.
+- **Leftover nodes:** generating twice used to leave empty duplicate groups, and cleanup relied on name prefixes. Every node the tool creates is now **tagged with a custom attribute**, and Clear deletes by tag.
+- **Duplicated defaults:** one `DEFAULTS` table feeds both the UI and Reset.
+- **All-or-nothing clearing:** each cable stores its settings as attributes on its group, enabling `Delete Selected Cable` and `Load Selected Cable` for editing an existing cable.
