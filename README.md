@@ -6,8 +6,26 @@
 A Maya 2027 Python/Qt plugin that builds live pipes and cables between picked objects, locators or mesh components.
 
 **Contents**
+- [Try it (current build)](#try-it-current-build)
 - **The Pitch:** [1. One sentence](#1-the-tool-in-one-sentence) · [2. The chore](#2-the-chore-it-ends) · [3. The UI](#3-the-ui) · [4. Why it's advanced](#4-why-its-advanced) · [5. The three weeks](#5-the-three-weeks) · [6. MVP](#6-the-smallest-version-that-still-counts-mvp) · [7. Riskiest part](#7-the-riskiest-part)
 - **Design Notes:** [8. Technical design](#8-technical-design) · [9. Plugin & packaging](#9-plugin--packaging) · [10. Lessons from my previous tool](#10-lessons-from-my-previous-tool) · [11. Future modes](#11-future-modes-fences-and-roads)
+
+---
+
+## Try it (current build)
+Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, `decomposeMatrix` ends, live sag and waypoints.
+
+1. In Maya 2027, open **Windows › Settings/Preferences › Plug-in Manager**, click **Browse** and pick `CableTool/plug-ins/cableTool.py`.
+2. Open **Cable Tool › Open Cable Tool** from the main menu bar, or run `cmds.cableTool()`.
+3. Select two or more locators in order, press **Use Selection Order**, then **Generate Cable**. Move a locator: the cable follows.
+
+Run the tests headlessly:
+```
+MAYAPY=/Applications/Autodesk/maya2027/Maya.app/Contents/bin/mayapy
+$MAYAPY tests/test_cable_rig.py
+QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
+```
+Picking anchors turns on Maya's *track selection order* preference, which waypoint ordering needs.
 
 ---
 
@@ -32,7 +50,7 @@ One window, top to bottom:
 | **Shape** (live) | Radius & Profile Sides · Twist & Taper · Sag · Normal Lead-out Length |
 | **Hardware** | Clamp/bracket/connector mesh picker · `Spacing` (every N units) · `End Caps` |
 | **UVs** | `Texture Repeat per Unit` |
-| **Footer** (pinned) | `Generate Cable` · `Bake to Static Mesh` · `Clear` · colour-coded status box |
+| **Footer** (pinned) | `Generate Cable` · `Rebuild Current` · `Bake to Static Mesh` · `Clear All` · colour-coded status box |
 
 - Settings scroll in **collapsible sections**; the footer never scrolls out of reach.
 - Status messages are tagged `[OK]` / `[WARNING]` / `[ERROR]` and say how to fix a problem, not just that one exists.
@@ -91,6 +109,8 @@ Getting the cable to leave a picked vertex or face cleanly along its normal and 
 **Live node network**
 - **Sag scales with span length** through a `distanceBetween` node, so the slider feels the same at any scene scale.
 - **Catenary shape, kept live:** per-point catenary weights are computed once at build time; nodes compute weight × sag × span length, so no Python runs per frame.
+- **Waypoints:** each waypoint drives its own curve point; the cubic curve rounds the bend slightly, so it passes very close to (not exactly through) a waypoint. Start and End are exact.
+- **Settings live on the cable group:** radius, sides, twist, taper and sag are keyable attributes wired into the network, so they can also be changed or animated from the Channel Box. Smoothness changes the curve's point count, so it applies on `Rebuild Current`.
 
 **Scene safety**
 - **One undo chunk per action** (`try/finally`); live sliders open a chunk on press and close it on release, so a whole drag undoes with one Ctrl+Z.
@@ -102,23 +122,29 @@ Getting the cable to leave a picked vertex or face cleanly along its normal and 
 ### 9. Plugin & packaging
 The tool ships as a **Maya module** containing a **Python plugin**, so artists install it once and load it from **Windows › Settings/Preferences › Plug-in Manager** — no Script Editor or command line.
 
-**Folder layout**
+**Folder layout** (✅ = built, ⏳ = week 3)
 ```
 CableTool/
-├── CableTool.mod            # tells Maya where the module lives
-├── install.py               # drag-and-drop installer
+├── CableTool.mod            ✅ tells Maya where the module lives
+├── install.py               ⏳ drag-and-drop installer
 ├── plug-ins/
-│   └── cableTool.py         # plugin entry point (thin)
+│   └── cableTool.py         ✅ plugin entry point (thin)
 ├── scripts/
-│   └── cable_tool/          # the real code, as a Python package
+│   └── cable_tool/          ✅ the real code, as a Python package
 │       ├── __init__.py
-│       ├── ui.py            # Qt window
-│       ├── route.py         # shared route core
-│       ├── nodes.py         # node-network helpers, tagging
+│       ├── config.py        ✅ DEFAULTS, ranges, sanitising, errors
+│       ├── ui.py            ✅ Qt window
+│       ├── route.py         ✅ shared route core
+│       ├── nodes.py         ✅ tagging, cleanup, undo, sweep dependency
+│       ├── dev.py           ✅ Reload for development
 │       └── generators/
-│           └── cable.py     # CableGenerator
+│           ├── base.py      ✅ shared generator interface
+│           └── cable.py     ✅ CableGenerator
 └── icons/
-    └── cableTool.png        # menu / shelf icon
+    └── cableTool.png        ⏳ menu / shelf icon
+tests/
+├── test_cable_rig.py        ✅ headless rig tests (mayapy)
+└── test_ui.py               ✅ headless window smoke test
 ```
 
 **Plugin steps**
