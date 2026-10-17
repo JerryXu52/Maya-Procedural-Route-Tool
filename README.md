@@ -1,7 +1,6 @@
 # Procedural Pipe & Cable Generator for Maya
 
-**Course:** Midterm Tool Pitch  
-**Author:** [Your Name]  
+**Author:** [Jianrui(Jerry) Xu]  
 
 A Maya 2027 Python/Qt plugin that builds live pipes and cables between picked objects, locators or mesh components.
 
