@@ -12,6 +12,7 @@ A Maya Python/Qt tool that procedurally generates customizable pipes and cables 
 It eliminates the manual, highly repetitive workflow of drawing CV curves, extruding geometry profiles, rigging endpoints, adjusting wire slack/sag, placing clamps and connectors, and fixing UVs by hand. Doing this manually takes 15–20 minutes per cable setup; this tool reduces the task to a few clicks and a few seconds.
 
 ### 3. The UI
+- **Mode Selector:** dropdown at the top (`Cable / Pipe` for the midterm; `Fence` and `Road` greyed out until built — see section 9). The Route section stays shared; the controls below swap per mode.
 - **Route Selection:** `Start` / `End` fields and an ordered `Waypoints` list, each with `Get Selected`. Accepts transforms, locators, vertices or faces.
 - **Presets Dropdown:** `Single Industrial Pipe`, `Multi-Wire Bundle`, `Corrugated Hose`.
 - **Shape Sliders** (drive Sweep Mesh attributes live):
@@ -40,7 +41,10 @@ It eliminates the manual, highly repetitive workflow of drawing CV curves, extru
   - **Hardware:** clamps/brackets/connectors instanced every N units along the curve and following it live; end caps at both ends.
   - **UVs:** length-wise UVs scaled by curve length so textures tile evenly.
   - Presets, bake to static mesh, Undo chunking, edge-case error handling, UI polish.
-- **Stretch (if time allows):** multi-wire bundles, noise variation.
+- **Stretch (if time allows), in priority order:**
+  1. Multi-wire bundles, noise variation.
+  2. **Fence mode (basic):** posts instanced every N units plus swept rails, on flat ground.
+  3. **Road mode (basic):** flat swept ribbon with length-wise lane-marking UVs — no terrain conforming or intersections.
 
 ### 6. The smallest version that still counts (MVP)
 A Qt UI where selecting two objects generates a Sweep Mesh cable whose ends follow those objects live via `decomposeMatrix`, with working Radius and Sag sliders.
@@ -81,3 +85,30 @@ In September I built `CableHoseRigTool.py`, a one-shot cable generator: it compu
 - **Leftover nodes:** generating twice used to leave empty duplicate groups, and cleanup relied on name prefixes. Every node the tool creates is now **tagged with a custom attribute**, and Clear deletes by tag.
 - **Duplicated defaults:** one `DEFAULTS` table feeds both the UI and Reset.
 - **All-or-nothing clearing:** each cable stores its settings as attributes on its group, enabling `Delete Selected Cable` and `Load Selected Cable` for editing an existing cable.
+
+### 9. Future modes: fences and roads
+Cables, fences and roads are all **curve-driven procedural geometry**, so one tool with a mode switch can build all three. Most of the cable work carries straight over:
+
+| Building block | Cable / Pipe | Fence | Road |
+|---|---|---|---|
+| Route picking, waypoints, live curve | ✅ | ✅ | ✅ |
+| Sweep Mesh along the curve | the tube | rails (thin box profile) | road surface (flat, wide profile) |
+| Hardware instanced every N units | clamps, brackets | **fence posts** | lamp posts, road markers |
+| Length-wise UVs | ribbed / striped textures | rail wood grain | **lane markings** |
+| Sag | ✅ | wire fences only | ❌ |
+
+**Architecture (built into the midterm from the start)**
+- **Shared route core:** start/end/waypoint picking (objects or components), the live curve, `decomposeMatrix` drivers, undo and error handling.
+- **One generator per mode** — `CableGenerator`, `FenceGenerator`, `RoadGenerator` — each with the same interface: `build(route, settings)`, `update(settings)`, `bake()`, `delete()`.
+- **GUI:** a mode dropdown on top; the Route section is always visible; a stacked panel swaps in each mode's controls; `Generate`, `Clear` and the status box stay in the shared footer.
+- **Tagging:** every generated object records which mode built it, so `Load Selected` opens the right panel.
+
+**Where each mode gets hard**
+- **Fence:** posts must stay vertical and sit on uneven ground rather than following the curve's tilt; gaps and gates.
+- **Road:** conforming to terrain, banking on curves, blending into the ground, and intersections — the hardest of the three.
+- **Cable:** component attachment along normals (already the riskiest part of the midterm).
+
+**Plan**
+1. **Midterm:** build the mode architecture and dropdown, with only `Cable / Pipe` working.
+2. **Stretch:** basic Fence mode, then basic Road mode (see section 5).
+3. **After the midterm:** terrain conforming for fences and roads, gates, road intersections.
