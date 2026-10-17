@@ -1,8 +1,8 @@
-# Procedural Pipe & Cable Generator for Maya
+# Maya Procedural Route Tool
 
 **Author:** [Jianrui(Jerry) Xu]  
 
-A Maya 2027 Python/Qt plugin that builds live pipes and cables between picked objects, locators or mesh components.
+A Maya 2027 Python/Qt plugin that builds live geometry along a route of picked objects, locators or mesh components. **Cable / Pipe** mode is the midterm; **Fence** and **Road** modes are planned (see [section 11](#11-future-modes-fences-and-roads)).
 
 **Contents**
 - [Try it (current build)](#try-it-current-build)
