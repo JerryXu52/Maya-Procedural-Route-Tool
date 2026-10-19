@@ -8,6 +8,7 @@ A Maya 2027 Python/Qt plugin that builds live geometry along a route of picked o
 - [Try it (current build)](#try-it-current-build)
 - **The Pitch:** [1. One sentence](#1-the-tool-in-one-sentence) · [2. The chore](#2-the-chore-it-ends) · [3. The UI](#3-the-ui) · [4. Why it's advanced](#4-why-its-advanced) · [5. The three weeks](#5-the-three-weeks) · [6. MVP](#6-the-smallest-version-that-still-counts-mvp) · [7. Riskiest part](#7-the-riskiest-part)
 - **Design Notes:** [8. Technical design](#8-technical-design) · [9. Plugin & packaging](#9-plugin--packaging) · [10. Lessons from my previous tool](#10-lessons-from-my-previous-tool) · [11. Future modes](#11-future-modes-fences-and-roads)
+- **Feedback:** [12. Peer run: Tong Lin](#12-peer-run-tong-lin)
 
 ---
 
@@ -186,3 +187,12 @@ Cables, fences and roads are all **curve-driven geometry**, so the mode architec
 1. **Midterm:** mode architecture and dropdown, with only `Cable / Pipe` working.
 2. **Stretch:** basic Fence, then basic Road (see [section 5](#5-the-three-weeks)).
 3. **After the midterm:** terrain conforming, gates, road intersections.
+
+---
+
+## Feedback
+
+### 12. Peer run: Tong Lin
+1. **What I did:** I loaded the plug-in in Maya 2026, picked a cone, a cube, a sphere and a cylinder in order as start, waypoints and end, generated a few cables, and then changed the Twist and Smoothness settings and added more waypoints.
+2. **What happened:** The cables were generated and followed the objects, but after changing Twist the tube became kinked and twisted into separate segments instead of a smooth cable, and where the cable meets the start and end objects the tube narrows to a sharp point and the cables cross each other.
+3. **What confused me or broke:** Smoothness didn't update live like the other settings (I had to press Rebuild to see it), and when I added several waypoints the cable bent into sharp, tight corners around them instead of a smooth turn.
