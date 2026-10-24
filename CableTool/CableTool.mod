@@ -1,1 +1,1 @@
-+ CableTool 0.6.0 .
++ CableTool 0.7.0 .

@@ -61,7 +61,7 @@ def interface_strings():
             add(title)
         for preset, _values in generator.presets:
             add(preset)
-        for _key, label, tip in generator.extras:
+        for _key, label, tip, _section in generator.extras:
             add(label)
             add(tip)
     return found

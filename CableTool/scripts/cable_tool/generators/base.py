@@ -30,8 +30,8 @@ class BaseGenerator(object):
     sections = ()          # (("Shape", ("radius", ...)), ...) for the UI
     presets = ()           # (("Name", {setting: value}), ...)
     # Inputs that are scene nodes, not numbers, e.g. a custom clamp mesh:
-    # (("key", "Label", "tooltip"), ...). Stored on the group as message
-    # connections so Rebuild keeps them.
+    # (("key", "Label", "tooltip", "Section shown in"), ...). Stored on the
+    # group as message connections so Rebuild keeps them.
     extras = ()
 
     def __init__(self, group=None):
@@ -106,7 +106,7 @@ class BaseGenerator(object):
     def read_extras(self):
         """{key: node or None} for this build's extras."""
         values = {}
-        for key, _label, _tip in self.extras:
+        for key, _label, _tip, _section in self.extras:
             plug = self.group + "." + key
             source = (cmds.listConnections(plug, source=True,
                                            destination=False)
@@ -175,6 +175,8 @@ class BaseGenerator(object):
             self.group, children=True, fullPath=True, type="transform") or []
             if geo.endswith("_geo") or "_clamp" in geo.split("|")[-1]
             and not geo.endswith("_clampRing")]
+        # A part that is switched off (a fence with no pickets) is empty.
+        meshes = [geo for geo in meshes if cmds.polyEvaluate(geo, face=True)]
         if not meshes:
             raise CableToolError(tr("{0} has no geometry to bake.").format(
                 route_mod.short_name(self.group)))
@@ -239,7 +241,7 @@ class BaseGenerator(object):
                 cmds.setAttr(plug, keyable=True)
 
     def _record_extras(self, extras):
-        for key, _label, _tip in self.extras:
+        for key, _label, _tip, _section in self.extras:
             cmds.addAttr(self.group, longName=key, attributeType="message")
             node = extras.get(key)
             if node:

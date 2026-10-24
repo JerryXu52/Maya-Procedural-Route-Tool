@@ -262,6 +262,7 @@ class AnchorField(QtWidgets.QWidget):
 
     def __init__(self, label, tip, on_pick, parent=None):
         super(AnchorField, self).__init__(parent)
+        self.label = label
         title = QtWidgets.QLabel(tr(label))
         title.setMinimumWidth(90)
         self.edit = QtWidgets.QLineEdit()
@@ -459,8 +460,8 @@ class CableToolWindow(QtWidgets.QWidget):
         pickers = self.extra_fields.setdefault(generator.mode, {})
         for title, keys in generator.sections:
             section = CollapsibleSection(tr(title))
-            if title == "Hardware":
-                for key, label, tip in generator.extras:
+            for key, label, tip, extra_section in generator.extras:
+                if extra_section == title:
                     pickers[key] = AnchorField(label, tip,
                                                self.on_pick_extra)
                     section.body_layout.addWidget(pickers[key])
@@ -623,12 +624,12 @@ class CableToolWindow(QtWidgets.QWidget):
         selection = cmds.ls(selection=True, transforms=True) or []
         field.set_text(selection[0] if selection else "")
         if selection:
-            self.set_status(tr("Clamp mesh set to {0}; it applies on "
-                               "Generate or Rebuild.").format(selection[0]),
-                            "ok")
+            self.set_status(tr("{0} set to {1}; it applies on Generate or "
+                               "Rebuild.").format(tr(field.label),
+                                                  selection[0]), "ok")
         else:
-            self.set_status(tr("Clamp mesh cleared: the default ring is "
-                               "used."), "ok")
+            self.set_status(tr("{0} cleared: the default is used.").format(
+                tr(field.label)), "ok")
 
     def on_pick_anchor(self, field):
         # Not @guarded: it needs the field argument, which the decorator

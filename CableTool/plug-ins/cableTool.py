@@ -1,7 +1,7 @@
 """Cable Tool plugin entry point.
 
 Kept deliberately thin: it registers the `cableTool` command and the
-`cableToolSolver` node, adds the Cable Tool menu (cable_tool.menu) and
+`cableToolSolver` and `fenceToolBuilder` nodes, adds the Cable Tool menu (cable_tool.menu) and
 makes sure the `cable_tool` package can be imported.
 All real work lives in scripts/cable_tool.
 
@@ -15,7 +15,7 @@ import maya.api.OpenMaya as om
 import maya.cmds as cmds
 
 VENDOR = "JerryXu52"
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 def maya_useNewAPI():
@@ -56,6 +56,10 @@ def initializePlugin(mobject):
     plugin.registerNode(solver.NODE_NAME, solver.NODE_ID,
                         solver.CableSolverNode.creator,
                         solver.CableSolverNode.initialize)
+    from cable_tool import fence
+    plugin.registerNode(fence.NODE_NAME, fence.NODE_ID,
+                        fence.FenceBuilderNode.creator,
+                        fence.FenceBuilderNode.initialize)
 
     # Sweep Mesh is a dependency. If it won't load, the plugin still loads
     # and the window reports a clear error when you try to build.
@@ -80,5 +84,6 @@ def uninitializePlugin(mobject):
     from cable_tool import menu
     menu.remove()
     plugin.deregisterCommand(CableToolCommand.NAME)
-    from cable_tool import solver
+    from cable_tool import fence, solver
     plugin.deregisterNode(solver.NODE_ID)
+    plugin.deregisterNode(fence.NODE_ID)

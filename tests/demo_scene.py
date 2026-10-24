@@ -2,8 +2,9 @@
 
     exec(open("/path/to/tests/demo_scene.py").read())
 
-builds the showcase (utility poles and a cyberpunk alley). For the peer
-run's scene (cone, cube, sphere and cylinder), call demo("peer") after.
+builds the showcase (utility poles and a cyberpunk alley). Then call
+demo("fence") for the fence showcase (a farm on rolling ground), or
+demo("peer") for the peer run's scene (cone, cube, sphere and cylinder).
 """
 
 import os
@@ -119,6 +120,108 @@ def cyberpunk_alley(x0=12.0):
     return cables
 
 
+def _fence(anchors, preset=None, ground=None, **settings):
+    from cable_tool.generators import FenceGenerator
+    from cable_tool.route import Route
+    values = FenceGenerator.preset(preset) if preset else {}
+    values.update(settings)
+    fence = FenceGenerator()
+    fence.build(Route(anchors[0], anchors[-1], anchors[1:-1]), values,
+                extras={"ground": ground})
+    return fence
+
+
+def _paint(name, colour, nodes):
+    shader = cmds.ls(name)
+    if not shader:
+        shader = [cmds.shadingNode("lambert", asShader=True, name=name)]
+        cmds.setAttr(shader[0] + ".color", *colour, type="double3")
+        group = cmds.sets(renderable=True, noSurfaceShader=True, empty=True,
+                          name=name + "SG")
+        cmds.connectAttr(shader[0] + ".outColor", group + ".surfaceShader")
+    group = cmds.listConnections(shader[0] + ".outColor", type="shadingEngine")
+    for node in nodes:
+        cmds.sets(node, edit=True, forceElement=group[0])
+
+
+def _parts(fence, *names):
+    return [cmds.ls("{0}|*_{1}_geo".format(fence.group, name), long=True)[0]
+            for name in names]
+
+
+def rolling_ground():
+    """A 70 x 44 field of gentle hills."""
+    import math
+    ground = cmds.polyPlane(name="ground", width=70, height=44,
+                            subdivisionsX=70, subdivisionsY=44)[0]
+    count = cmds.polyEvaluate(ground, vertex=True)
+    for i in range(count):
+        x, _y, z = cmds.pointPosition("{0}.vtx[{1}]".format(ground, i),
+                                      world=True)
+        y = (1.3 * math.sin(x * 0.13) + 0.9 * math.cos(z * 0.21 + 0.4)
+             + 0.25 * math.sin(x * 0.5 + z * 0.35))
+        cmds.xform("{0}.vtx[{1}]".format(ground, i), worldSpace=True,
+                   translation=(x, y, z))
+    _paint("grassMtl", (0.32, 0.45, 0.22), [ground])
+    return ground
+
+
+def farm():
+    """A picket-fenced yard with a gate, a ranch fence curving over the
+    hill, a wire fence along the back, a privacy fence and a pipe railing
+    on a concrete wall. Every fence stands on the rolling ground except
+    the railing, which rides the wall."""
+    ground = rolling_ground()
+    fences = []
+
+    # The yard: from one gate post round three corners to the other.
+    house = cmds.polyCube(name="house", width=5, height=3.5, depth=4)[0]
+    cmds.xform(house, worldSpace=True, translation=(-17, 1.4, 0))
+    _paint("houseMtl", (0.75, 0.62, 0.5), [house])
+    yard = [_locator("yard{0}".format(i), (x, 3, z)) for i, (x, z) in
+            enumerate(((-13, -6), (-9, -6), (-9, 6), (-24, 6), (-24, -6),
+                       (-16, -6)))]
+    picket = _fence(yard, "Picket Fence", ground, fenceFlip=1)
+    _paint("whitePaintMtl", (0.9, 0.9, 0.86),
+           _parts(picket, "posts", "rails", "pickets"))
+    fences.append(picket)
+
+    # A ranch fence curving over the hill.
+    ranch = _fence([_locator("ranch{0}".format(i), (x, 3, z)) for i, (x, z)
+                    in enumerate(((-4, -14), (4, -9), (12, -13), (22, -8)))],
+                   "Ranch Rail", ground, fenceCurve=1.0, wear=0.3)
+    _paint("woodMtl", (0.45, 0.3, 0.18), _parts(ranch, "posts", "rails"))
+    fences.append(ranch)
+
+    # A sagging wire fence along the back of the field.
+    wire = _fence([_locator("wire{0}".format(i), (x, 3, 15)) for i, x in
+                   enumerate((-30, 0, 30))], "Wire Fence", ground)
+    _paint("oldWoodMtl", (0.36, 0.3, 0.24), _parts(wire, "posts"))
+    _paint("steelMtl", (0.55, 0.57, 0.6), _parts(wire, "rails"))
+    fences.append(wire)
+
+    # A privacy fence screening the yard's back.
+    privacy = _fence([_locator("privacy{0}".format(i), (x, 3, z)) for i, (x, z)
+                      in enumerate(((-6, 9), (6, 10)))], "Privacy Fence",
+                     ground)
+    _paint("cedarMtl", (0.6, 0.4, 0.26),
+           _parts(privacy, "posts", "rails", "pickets"))
+    fences.append(privacy)
+
+    # A pipe railing on a concrete wall: its anchors ride the wall.
+    wall = cmds.polyCube(name="wall", width=10, height=3, depth=1.2)[0]
+    cmds.xform(wall, worldSpace=True, translation=(24, 2.2, 2))
+    _paint("concreteMtl", (0.6, 0.6, 0.58), [wall])
+    ends = [_locator("rail{0}".format(i), (x, 3.7, 2)) for i, x in
+            enumerate((19.6, 28.4))]
+    for end in ends:
+        cmds.parent(end, wall)
+    railing = _fence(ends, "Pipe Railing")
+    _paint("steelMtl", None, _parts(railing, "posts", "rails"))
+    fences.append(railing)
+    return fences
+
+
 def peer_run():
     """The peer run's scene: cone, cube, sphere, cylinder."""
     cone = cmds.polyCone(name="cone", radius=1, height=2)[0]
@@ -143,6 +246,8 @@ def demo(scene="showcase"):
     from cable_tool import ui
     if scene == "peer":
         cables = peer_run()
+    elif scene == "fence":
+        cables = farm()
     else:
         cables = utility_poles() + cyberpunk_alley()
 

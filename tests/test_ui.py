@@ -51,10 +51,10 @@ def run():
     assert win is not None and win.isVisible()
     assert ui.show() is win  # a second call raises the same window
 
-    # Only Cable / Pipe can be picked; Fence and Road are listed greyed out.
+    # Cable / Pipe and Fence can be picked; Road is listed greyed out.
     items = [win.mode_box.model().item(i)
              for i in range(win.mode_box.count())]
-    assert [item.isEnabled() for item in items] == [True, False, False]
+    assert [item.isEnabled() for item in items] == [True, True, False]
     assert win.generate_button.text() == "Generate Cable"
     assert win.mode_stack.count() == 3
 
@@ -144,6 +144,33 @@ def run():
     win = ui.switch_language("en")
     assert win.generate_button.text() == "Generate Cable"
     assert win.status.toPlainText().startswith("[OK]")
+
+    # Fence mode: same route, its own panel, presets and pickers.
+    win.mode_box.setCurrentIndex(1)
+    assert win.generate_button.text() == "Generate Fence"
+    ground = cmds.polyPlane(name="ground", width=40, height=40)[0]
+    cmds.select(ground)
+    win.on_pick_extra(win.extra_fields["fence"]["ground"])
+    assert win.extras()["ground"] == "ground"
+    win.on_apply_preset("Picket Fence")
+    win.on_generate()
+    assert win.status.toPlainText().startswith("[OK]"), \
+        win.status.toPlainText()
+    fence = win.current
+    assert fence.mode == "fence" and cmds.getAttr(fence.group + ".pickets")
+    win.fields["fence"]["postHeight"].field.setValue(1.6)
+    assert abs(cmds.getAttr(fence.group + ".postHeight") - 1.6) < 1e-6
+    # Loading the cable switches the window back to Cable / Pipe.
+    cmds.select(geo)
+    win.on_load_selected()
+    assert win.mode_box.currentData() == "cable"
+    cmds.select(fence.group)
+    win.on_load_selected()
+    assert win.mode_box.currentData() == "fence"
+    assert win.extras()["ground"] == "ground"
+    win.mode_box.setCurrentIndex(0)
+    cmds.select(geo)
+    win.on_load_selected()
 
     # A bad route is a warning in the status box, not an exception.
     win.start_field.set_text("")

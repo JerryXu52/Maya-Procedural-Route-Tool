@@ -8,7 +8,7 @@ never disagree.
 import math
 
 TOOL_NAME = "Cable Tool"
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 # Attribute added to every node the tool creates. Its value is the UUID
 # of the cable's group, so cleanup finds nodes by tag, never by name.
@@ -159,6 +159,124 @@ DEFAULTS = {
                        "surface (between its normal and the next anchor) "
                        "before it turns and hangs. 0 = it hangs straight "
                        "from the attach point."},
+
+    # -- Fence mode ------------------------------------------------------
+    "postSpacing": {"default": 2.0, "slider": (0.3, 6.0),
+                    "field": (0.05, 1000.0), "type": "float",
+                    "rebuild": False, "label": "Post Spacing",
+                    "tip": "Most distance between posts. Each run is "
+                           "divided evenly, so posts may sit a little "
+                           "closer."},
+    "cornerPosts": {"default": 1, "slider": (0, 1), "field": (0, 1),
+                    "type": "bool", "rebuild": False,
+                    "label": "Post At Every Anchor",
+                    "tip": "On: every anchor gets a post, so corners are "
+                           "square. Off: posts are spaced evenly along the "
+                           "whole route and rails cut across corners."},
+    "fenceCurve": {"default": 0.0, "slider": (0.0, 1.0), "field": (0.0, 1.0),
+                   "type": "float", "rebuild": False, "label": "Path Curve",
+                   "tip": "0 = straight runs between anchors, 1 = a smooth "
+                          "curve through every anchor. Rails stay straight "
+                          "from post to post, like real lumber."},
+    "fenceFlip": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                  "type": "bool", "rebuild": False,
+                  "label": "Rails On Other Side",
+                  "tip": "Mount the rails and pickets on the other face of "
+                         "the posts."},
+    "postHeight": {"default": 1.2, "slider": (0.2, 4.0),
+                   "field": (0.01, 1000.0), "type": "float",
+                   "rebuild": False, "label": "Post Height",
+                   "tip": "Height of the posts above the ground."},
+    "postWidth": {"default": 0.1, "slider": (0.02, 0.5),
+                  "field": (0.001, 100.0), "type": "float",
+                  "rebuild": False, "label": "Post Width",
+                  "tip": "Thickness of a square post, or diameter of a "
+                         "round one."},
+    "roundPosts": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                   "type": "bool", "rebuild": False, "label": "Round Posts",
+                   "tip": "Round posts (logs, metal poles) instead of "
+                          "square ones."},
+    "postCap": {"default": 0.0, "slider": (0.0, 1.0), "field": (0.0, 3.0),
+                "type": "float", "rebuild": False, "label": "Post Cap",
+                "tip": "A pointed top on square posts, to shed rain. 0 = "
+                       "flat, 1 = a point as tall as half the post's "
+                       "width."},
+    "railCount": {"default": 2, "slider": (0, 8), "field": (0, 50),
+                  "type": "int", "rebuild": False, "label": "Rail Count",
+                  "tip": "Rails from post to post, spaced evenly from Lowest "
+                         "Rail to Highest Rail. 0 = posts only."},
+    "railBottom": {"default": 0.25, "slider": (0.0, 3.0),
+                   "field": (0.0, 1000.0), "type": "float",
+                   "rebuild": False, "label": "Lowest Rail",
+                   "tip": "Height of the lowest rail's centre above the "
+                          "ground."},
+    "railTop": {"default": 0.95, "slider": (0.0, 3.0), "field": (0.0, 1000.0),
+                "type": "float", "rebuild": False, "label": "Highest Rail",
+                "tip": "Height of the highest rail's centre above the "
+                       "ground (one rail sits here)."},
+    "railSize": {"default": 0.09, "slider": (0.005, 0.4),
+                 "field": (0.0005, 100.0), "type": "float",
+                 "rebuild": False, "label": "Rail Size",
+                 "tip": "Height of a rail board, or diameter of a round "
+                        "rail."},
+    "railDepth": {"default": 0.04, "slider": (0.005, 0.3),
+                  "field": (0.0005, 100.0), "type": "float",
+                  "rebuild": False, "label": "Rail Thickness",
+                  "tip": "How thick a rail board is, front to back."},
+    "roundRails": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                   "type": "bool", "rebuild": False, "label": "Round Rails",
+                   "tip": "Round rails: wires or pipes instead of boards. "
+                          "They can sag (Rail Sag)."},
+    "railInline": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                   "type": "bool", "rebuild": False,
+                   "label": "Rails Through Posts",
+                   "tip": "Run the rails through the middle of the posts "
+                          "(split rail, pipe railing) instead of fixing "
+                          "them to the front face."},
+    "railSag": {"default": 0.0, "slider": (0.0, 0.1), "field": (0.0, 1.0),
+                "type": "float", "rebuild": False, "label": "Rail Sag",
+                "tip": "How far a round rail droops between posts, as a "
+                       "fraction of the gap. For wire fences."},
+    "pickets": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                "type": "bool", "rebuild": False, "label": "Pickets",
+                "tip": "Fill each span with upright pickets nailed to the "
+                       "front of the rails."},
+    "picketHeight": {"default": 1.05, "slider": (0.1, 3.0),
+                     "field": (0.01, 1000.0), "type": "float",
+                     "rebuild": False, "label": "Picket Height",
+                     "tip": "Height of each picket. With a Ground mesh, "
+                            "each picket stands on the ground where it is."},
+    "picketWidth": {"default": 0.08, "slider": (0.02, 0.4),
+                    "field": (0.001, 100.0), "type": "float",
+                    "rebuild": False, "label": "Picket Width",
+                    "tip": "Width of one picket."},
+    "picketGap": {"default": 0.06, "slider": (0.0, 0.3),
+                  "field": (0.0, 100.0), "type": "float",
+                  "rebuild": False, "label": "Picket Gap",
+                  "tip": "Space between pickets. 0 = a solid privacy "
+                         "fence."},
+    "picketThickness": {"default": 0.02, "slider": (0.005, 0.1),
+                        "field": (0.0005, 10.0), "type": "float",
+                        "rebuild": False, "label": "Picket Thickness",
+                        "tip": "How thick a picket is, front to back."},
+    "picketPoint": {"default": 0.5, "slider": (0.0, 1.0), "field": (0.0, 1.0),
+                    "type": "float", "rebuild": False, "label": "Picket Point",
+                    "tip": "How pointed the picket tops are. 0 = flat, "
+                           "1 = a 45-degree point."},
+    "wear": {"default": 0.0, "slider": (0.0, 1.0), "field": (0.0, 1.0),
+             "type": "float", "rebuild": False, "label": "Wear",
+             "tip": "Age: posts and pickets lean and differ in height. "
+                    "0 = brand new."},
+    "fenceSeed": {"default": 1, "slider": (0, 100), "field": (0, 99999),
+                  "type": "int", "rebuild": False, "label": "Seed",
+                  "tip": "Picks a different random pattern of wear."},
+    "fenceUvRepeat": {"default": 1.0, "slider": (0.1, 10.0),
+                      "field": (0.001, 1000.0), "type": "float",
+                      "rebuild": False, "label": "Texture Repeat per Unit",
+                      "tip": "How many times a texture tiles per scene unit. "
+                             "UVs are in scene units with the grain along "
+                             "each board, so wood tiles evenly on every "
+                             "part."},
 }
 
 

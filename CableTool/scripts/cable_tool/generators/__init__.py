@@ -7,7 +7,8 @@ import maya.cmds as cmds
 from cable_tool import nodes
 from cable_tool.config import MODE_ATTR
 from cable_tool.generators.cable import CableGenerator
-from cable_tool.generators.planned import FenceGenerator, RoadGenerator
+from cable_tool.generators.fence import FenceGenerator
+from cable_tool.generators.planned import RoadGenerator
 
 # Dropdown order.
 GENERATORS = (CableGenerator, FenceGenerator, RoadGenerator)

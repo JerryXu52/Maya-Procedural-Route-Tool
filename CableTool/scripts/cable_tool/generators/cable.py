@@ -66,7 +66,7 @@ class CableGenerator(BaseGenerator):
     extras = (
         ("clampSource", "Clamp Mesh",
          "A mesh to use as the clamp, modelled at the origin around a tube "
-         "of radius 1 lying along +X. Empty: a plain ring."),
+         "of radius 1 lying along +X. Empty: a plain ring.", "Hardware"),
     )
 
     def _check_dependencies(self):

@@ -650,11 +650,11 @@ def modes_share_one_interface():
     from cable_tool.route import Route
     modes = [g.mode for g in generators.GENERATORS]
     assert modes == ["cable", "fence", "road"], modes
-    assert [g.available for g in generators.GENERATORS] == [True, False,
+    assert [g.available for g in generators.GENERATORS] == [True, True,
                                                              False]
     a = locator("A", (0, 0, 0))
     b = locator("B", (10, 0, 0))
-    for mode in ("fence", "road"):
+    for mode in ("road",):
         try:
             generators.get(mode)().build(Route(a, b), {})
         except CableToolError:
@@ -667,6 +667,216 @@ def modes_share_one_interface():
     found = generators.from_node(parts(cable)[1])
     assert type(found).__name__ == "CableGenerator"
     assert found.cable_id == cable.cable_id
+
+
+# -- Fence mode -------------------------------------------------------------
+def fence(anchors, extras=None, **settings):
+    from cable_tool.route import Route
+    from cable_tool.generators import FenceGenerator
+    built = FenceGenerator()
+    built.build(Route(anchors[0], anchors[-1], anchors[1:-1]), settings,
+                extras=extras)
+    return built
+
+
+def fence_part(built, part):
+    geo = cmds.ls("{0}|*_{1}_geo".format(built.group, part), long=True)[0]
+    return cmds.listRelatives(geo, shapes=True, fullPath=True)[0]
+
+
+def post_count(built):
+    return cmds.getAttr(built.builder() + ".outPostCount")
+
+
+def signed_volume(shape):
+    """Positive when every face points outward."""
+    import maya.api.OpenMaya as om
+    fn = om.MFnMesh(om.MSelectionList().add(shape).getDagPath(0))
+    points = fn.getPoints(om.MSpace.kWorld)
+    _counts, corners = fn.getTriangles()
+    volume = 0.0
+    for i in range(0, len(corners), 3):
+        p0, p1, p2 = [om.MVector(points[corners[i + k]]) for k in range(3)]
+        volume += p0 * (p1 ^ p2) / 6.0
+    return volume
+
+
+@test
+def fence_puts_a_post_on_every_anchor():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    c = locator("C", (10, 0, 6))
+    built = fence([a, b, c], postSpacing=2.0)
+    assert post_count(built) == 9, post_count(built)  # 5 + 3 + the end
+    posts = fence_part(built, "posts")
+    assert cmds.polyEvaluate(posts, face=True) == 9 * 6
+    # A post stands on B, the corner.
+    box = bbox(posts)
+    assert box[3] > 10.0 and box[5] > 6.0
+    cmds.setAttr(built.group + ".cornerPosts", False)
+    assert post_count(built) == 9  # 16 units / 2: 8 gaps
+
+
+@test
+def fence_is_live():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    built = fence([a, b], postSpacing=2.0, railCount=2)
+    assert post_count(built) == 6
+    cmds.move(20, 0, 0, b, absolute=True)
+    assert post_count(built) == 11
+    rails = fence_part(built, "rails")
+    assert cmds.polyEvaluate(rails, face=True) == 10 * 2 * 6
+    cmds.setAttr(built.group + ".railCount", 3)
+    assert cmds.polyEvaluate(rails, face=True) == 10 * 3 * 6
+    cmds.setAttr(built.group + ".postHeight", 2.5)
+    assert abs(bbox(fence_part(built, "posts"))[4] - 2.5) < 1e-3
+
+
+@test
+def fence_parts_are_closed_and_face_outward():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (6, 0, 0))
+    c = locator("C", (6, 0, 4))
+    built = fence([a, b, c], pickets=1, postCap=1.0)
+    for part in ("posts", "rails", "pickets"):
+        assert signed_volume(fence_part(built, part)) > 0, part
+    cmds.setAttr(built.group + ".roundPosts", True)
+    cmds.setAttr(built.group + ".roundRails", True)
+    cmds.setAttr(built.group + ".railSag", 0.05)
+    for part in ("posts", "rails"):
+        assert signed_volume(fence_part(built, part)) > 0, part
+
+
+@test
+def rails_meet_at_corners():
+    # Mitred: the outer edges of both rails end on the same point.
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (4, 0, 0))
+    c = locator("C", (4, 0, 4))
+    built = fence([a, b, c], postSpacing=10.0, railCount=1)
+    rails = fence_part(built, "rails")
+    points = cmds.xform(rails + ".vtx[*]", query=True, worldSpace=True,
+                        translation=True)
+    points = [tuple(round(v, 4) for v in points[i:i + 3])
+              for i in range(0, len(points), 3)]
+    near_b = {p for p in points if abs(p[0] - 4) < 0.2 and abs(p[2]) < 0.2}
+    # The two rails' ends at B share their corner positions exactly.
+    assert len(near_b) == 4, sorted(near_b)
+
+
+@test
+def fence_stands_on_the_ground():
+    ground = cmds.polyPlane(name="ground", width=40, height=40,
+                            subdivisionsX=4, subdivisionsY=4)[0]
+    cmds.rotate(0, 0, 10, ground)  # a slope rising toward -X
+    a = locator("A", (-10, 5, 0))
+    b = locator("B", (10, 5, 0))
+    built = fence([a, b], extras={"ground": ground}, pickets=1,
+                  postHeight=1.0)
+    import math
+    posts = fence_part(built, "posts")
+    for x in (-10.0, 10.0):
+        surface = x * math.tan(math.radians(10))
+        tops = [p for p in _points(posts) if abs(p[0] - x) < 0.2]
+        top = max(p[1] for p in tops)
+        assert abs(top - (surface + 1.0)) < 0.05, (x, top, surface)
+    # Moving the ground carries the fence with it.
+    before = bbox(posts)[1]
+    cmds.move(0, 2, 0, ground, relative=True)
+    assert abs(bbox(posts)[1] - before - 2) < 1e-3
+
+
+def _points(shape):
+    flat = cmds.xform(shape + ".vtx[*]", query=True, worldSpace=True,
+                      translation=True)
+    return [flat[i:i + 3] for i in range(0, len(flat), 3)]
+
+
+@test
+def closed_route_makes_a_ring_without_a_doubled_post():
+    corners = [locator("C{0}".format(i), p) for i, p in
+               enumerate(((0, 0, 0), (6, 0, 0), (6, 0, 6), (0, 0, 6)))]
+    built = fence(corners + [corners[0]], postSpacing=2.0)
+    assert post_count(built) == 12, post_count(built)
+    # 12 spans, every one railed.
+    rails = fence_part(built, "rails")
+    assert cmds.polyEvaluate(rails, face=True) == 12 * 2 * 6
+
+
+@test
+def pickets_fill_spans_and_can_be_turned_off():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (4, 0, 0))
+    built = fence([a, b], postSpacing=4.0, pickets=1, picketWidth=0.1,
+                  picketGap=0.1, picketPoint=0.5)
+    pickets = fence_part(built, "pickets")
+    assert cmds.polyEvaluate(pickets, face=True) == 20 * 7  # 5-sided
+    cmds.setAttr(built.group + ".picketPoint", 0.0)
+    assert cmds.polyEvaluate(pickets, face=True) == 20 * 6
+    cmds.setAttr(built.group + ".pickets", False)
+    assert cmds.polyEvaluate(pickets, face=True) == 0
+    baked = built.bake()  # an empty part isn't baked
+    names = cmds.listRelatives(baked, children=True)
+    assert len(names) == 2 and not any("pickets" in n for n in names), names
+
+
+@test
+def custom_post_mesh_is_used_and_scaled():
+    post = cmds.polyCylinder(name="myPost", radius=0.3, height=4,
+                             subdivisionsAxis=6)[0]
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (4, 0, 0))
+    built = fence([a, b], extras={"postSource": post}, postSpacing=2.0,
+                  postHeight=1.5)
+    posts = fence_part(built, "posts")
+    per_post = cmds.polyEvaluate(post, face=True)
+    assert cmds.polyEvaluate(posts, face=True) == 3 * per_post
+    assert abs(bbox(posts)[4] - 1.5) < 1e-3
+    built.rebuild(built.read_route(), built.read_settings(),
+                  built.read_extras())
+    assert built.read_extras()["postSource"].endswith("myPost")
+
+
+@test
+def wear_is_repeatable_and_seeded():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    built = fence([a, b], wear=1.0, fenceSeed=3)
+    posts = fence_part(built, "posts")
+    first = _points(posts)
+    cmds.setAttr(built.group + ".fenceSeed", 4)
+    assert _points(posts) != first
+    cmds.setAttr(built.group + ".fenceSeed", 3)
+    assert _points(posts) == first
+    cmds.setAttr(built.group + ".wear", 0.0)
+    tops = [p[1] for p in _points(posts)]
+    assert abs(max(tops) - 1.2) < 1e-4
+
+
+@test
+def fence_presets_build_and_load():
+    from cable_tool.generators import FenceGenerator, from_node
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (8, 0, 0))
+    for name, _values in FenceGenerator.presets:
+        built = fence([a, b], **FenceGenerator.preset(name))
+        assert post_count(built) >= 2, name
+        found = from_node(fence_part(built, "posts"))
+        assert type(found).__name__ == "FenceGenerator"
+        assert found.read_settings() == FenceGenerator.sanitize(
+            FenceGenerator.preset(name)), name
+        built.delete()
+
+
+@test
+def fence_build_is_one_undo_step():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (8, 0, 0))
+    before = set(cmds.ls())
+    fence([a, b], pickets=1)
+    cmds.undo()
+    assert set(cmds.ls()) == before, set(cmds.ls()) ^ before
 
 
 @test
