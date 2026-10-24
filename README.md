@@ -20,7 +20,83 @@ Built for SVA *Programming for Animators* (midterm).
 | **Wire fence with a double farm gate** | **The whole farm demo** |
 | ![Round posts carrying four sagging wires over rolling ground, with a two-leaf tubular steel gate standing open](docs/images/fence-wire.png) | ![Five fences on rolling ground: wire, privacy, picket yard and ranch rail](docs/images/fence-farm.png) |
 
-**Contents:** [Features](#features) · [Install](#install) · [Quick start](#quick-start) · [User guide](#user-guide) · [How it works](#how-it-works) · [Project layout](#project-layout) · [Testing](#testing) · [Known limits](#known-limits) · [Roadmap](#roadmap) · [Course record](#course-record)
+## Contents
+
+<table>
+<tr>
+<td valign="top" width="33%">
+
+<b>🚀 Start here</b>
+<ul>
+<li><a href="#features">Features</a><ul>
+<li><a href="#cable--pipe">Cable / Pipe</a></li>
+<li><a href="#fence">Fence</a></li>
+<li><a href="#both-modes">Both modes</a></li>
+</ul></li>
+<li><a href="#install">Install</a></li>
+<li><a href="#quick-start">Quick start and demo scenes</a></li>
+</ul>
+
+</td>
+<td valign="top" width="33%">
+
+<b>📖 User guide</b>
+<ul>
+<li><a href="#the-window">The window</a></li>
+<li><a href="#1-pick-a-route">Step by step</a><ul>
+<li><a href="#1-pick-a-route">1. Pick a route</a></li>
+<li><a href="#2-choose-a-mode-and-a-preset">2. Choose a mode and a preset</a></li>
+<li><a href="#3-generate-and-adjust">3. Generate and adjust</a></li>
+<li><a href="#4-come-back-to-a-build-later">4. Come back to a build later</a></li>
+<li><a href="#5-finish-bake-or-delete">5. Finish: bake or delete</a></li>
+</ul></li>
+<li><a href="#cable--pipe-settings">Settings</a><ul>
+<li><a href="#cable--pipe-settings">Cable / Pipe settings</a></li>
+<li><a href="#fence-settings">Fence settings</a></li>
+</ul></li>
+<li><a href="#recipes">Recipes</a><ul>
+<li><a href="#recipe-wall-pipe">Pipe out of a wall</a></li>
+<li><a href="#recipe-power-lines">Power lines</a></li>
+<li><a href="#recipe-tangle">Cyberpunk tangle</a></li>
+<li><a href="#recipe-yard-gate">Picket yard with a gate</a></li>
+<li><a href="#recipe-farm-gate">Wire fence with a farm gate</a></li>
+<li><a href="#recipe-railing">Railing on a wall</a></li>
+</ul></li>
+<li><a href="#animating">Animating</a></li>
+<li><a href="#languages">Languages</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+
+</td>
+<td valign="top" width="33%">
+
+<b>🔧 Under the hood</b>
+<ul>
+<li><a href="#how-it-works">How it works</a><ul>
+<li><a href="#cable--pipe-network-per-wire">Cable / Pipe network</a></li>
+<li><a href="#the-cable-solver-cabletoolsolver">The cable solver</a></li>
+<li><a href="#fence-network">Fence network</a></li>
+<li><a href="#the-fence-builder-fencetoolbuilder">The fence builder</a></li>
+<li><a href="#shared-parts">Shared parts</a></li>
+</ul></li>
+<li><a href="#project-layout">Project layout</a></li>
+<li><a href="#testing">Testing</a></li>
+<li><a href="#known-limits">Known limits</a></li>
+<li><a href="#roadmap">Roadmap</a></li>
+<li><a href="#course-record">Course record</a><ul>
+<li><a href="#pitch">Pitch</a></li>
+<li><a href="#plan">Plan and status</a></li>
+<li><a href="#log-fence">Progress log: Fence</a></li>
+<li><a href="#log-gates">Progress log: Gates</a></li>
+<li><a href="#lessons">Lessons from my previous tool</a></li>
+<li><a href="#peer-run">Peer run: Tong Lin</a></li>
+<li><a href="#window-chinese">The window in Chinese</a></li>
+</ul></li>
+</ul>
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -50,6 +126,8 @@ Built for SVA *Programming for Animators* (midterm).
 - **Five languages:** English, 简体中文, 粵語, Español, Français.
 - **Safe to use:** every action is one undo step, errors explain how to fix the problem, and cleanup only ever touches nodes the tool made.
 
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
+
 ## Install
 Developed and tested in **Maya 2026** on macOS. Earlier versions are untested: Sweep Mesh needs Maya 2022 or later, and the tool also uses newer math nodes such as `multDL`.
 
@@ -57,6 +135,8 @@ Developed and tested in **Maya 2026** on macOS. Earlier versions are untested: S
 2. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin, sets it to auto-load and adds a **Cable Tool** shelf button.
 
 Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **Windows › Settings/Preferences › Plug-in Manager › Browse**.
+
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
 
 ## Quick start
 1. Open **Cable Tool › Open Cable Tool** from Maya's menu bar.
@@ -70,9 +150,9 @@ The [User guide](#user-guide) below explains each step in detail.
 - `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence with a double farm gate, a privacy fence and a pipe railing on a wall.
 - `demo("peer")` for the peer-review scene (cone, cube, sphere, cylinder).
 
-## User guide
-**In this guide:** [The window](#the-window) · [1. Pick a route](#1-pick-a-route) · [2. Choose a mode and preset](#2-choose-a-mode-and-a-preset) · [3. Generate and adjust](#3-generate-and-adjust) · [4. Come back to a build later](#4-come-back-to-a-build-later) · [5. Finish: bake or delete](#5-finish-bake-or-delete) · [Cable / Pipe settings](#cable--pipe-settings) · [Fence settings](#fence-settings) · [Recipes](#recipes) · [Animating](#animating) · [Languages](#languages) · [Troubleshooting](#troubleshooting)
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
 
+## User guide
 ### The window
 <img src="docs/images/window-en.png" alt="The Cable Tool window in Cable / Pipe mode" width="300" align="right">
 
@@ -198,6 +278,8 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 <br clear="right">
 
 ### Recipes
+<a id="recipe-wall-pipe"></a>
+
 <details open>
 <summary><b>A pipe coming out of a wall</b></summary>
 
@@ -207,6 +289,8 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 4. For brackets: raise **Clamp Count**. To use your own bracket, pick it as **Clamp Mesh** and press **Rebuild Current**.
 </details>
 
+<a id="recipe-power-lines"></a>
+
 <details>
 <summary><b>Power lines across utility poles</b></summary>
 
@@ -215,6 +299,8 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 3. Generate. Set **Wire Count** to the number of lines and **Spread** to the crossarm's width.
 </details>
 
+<a id="recipe-tangle"></a>
+
 <details>
 <summary><b>A cyberpunk wire tangle</b></summary>
 
@@ -222,6 +308,8 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 2. Pick faces on two building walls (and optionally a pipe or sign in between as a waypoint), then Generate.
 3. Change **Seed** until the tangle looks right, and raise **Slack Variation** for more chaos.
 </details>
+
+<a id="recipe-yard-gate"></a>
 
 <details>
 <summary><b>A picket-fenced yard with a gate</b></summary>
@@ -233,6 +321,8 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 5. If the pickets face into the yard, tick **Rails On Other Side**. Drag **Gate Swing** to open the gate.
 </details>
 
+<a id="recipe-farm-gate"></a>
+
 <details>
 <summary><b>A wire fence with a farm gate across a field</b></summary>
 
@@ -241,6 +331,8 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 3. Generate. Set **Gate After Anchor** to the number of the first gate locator, and tick **Double Gate**.
 4. Raise **Wear** for old, leaning posts.
 </details>
+
+<a id="recipe-railing"></a>
 
 <details>
 <summary><b>A railing along the top of a wall</b></summary>
@@ -274,6 +366,8 @@ The tool speaks English, 简体中文, 粵語, Español and Français. Switch fr
 
 - **A build is invisible:** two neighbouring anchors may sit on the same spot. Move one; the status box warns about this on Generate.
 - **Maya won't unload the plugin:** it can't while any cable or fence exists, even in the undo queue. Start a new scene first.
+
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
 
 ## How it works
 ### Cable / Pipe network (per wire)
@@ -347,6 +441,8 @@ A second `MPxNode` that makes the meshes itself, rather than with Sweep Mesh, so
   - **Cantonese** is written colloquial Cantonese in Traditional characters.
   - **Spanish and French** keep Maya's panel names in English, because Maya has no interface in those languages.
 
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
+
 ## Project layout
 ```
 CableTool/                       the Maya module (point Maya here)
@@ -372,6 +468,8 @@ tests/
 └── demo_scene.py                utility poles, cyberpunk alley, farm, peer-review scene
 ```
 
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
+
 ## Testing
 The tests run headlessly with Maya's Python (replace `maya2026` with your version):
 ```
@@ -394,6 +492,8 @@ They cover:
 - **Languages:** every string translated in every language, with its placeholders.
 - **Window:** a full session in each of the five languages, including building, gating and loading a fence.
 
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
+
 ## Known limits
 - **Speed with many wires:** dragging a crossarm that carries dozens of wires re-solves all of them, at about 0.16 s per update in the demo. A picket fence with about 1,300 parts updates in about 0.05 s.
 - **Sharp edges:** where a cable bends over a sharp edge, the tube can graze it by up to about a fifth of its radius. It never cuts through.
@@ -405,6 +505,8 @@ They cover:
   - **One gate per fence:** for a second gate, build a second fence.
 - **Unloading:** Maya won't unload the plugin while any cable or fence exists (even in the undo queue). Start a new scene first.
 - **Platforms:** tested in Maya 2026 on macOS only.
+
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
 
 ## Roadmap
 Cables, fences and roads are all built along a route, so the mode architecture lets one tool build all three:
@@ -421,8 +523,12 @@ Next: basic Road mode. For Fence, possible later steps: more than one gate per f
 
 ---
 
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
+
 ## Course record
 The midterm's pitch, plan, progress and peer feedback.
+
+<a id="pitch"></a>
 
 <details>
 <summary><b>Pitch</b></summary>
@@ -439,6 +545,8 @@ The midterm's pitch, plan, progress and peer feedback.
 
 **7. The riskiest part.** Getting the cable to leave a picked vertex or face cleanly along its normal and stay attached while the mesh deforms, and keeping sag live alongside waypoints without the curve kinking.
 </details>
+
+<a id="plan"></a>
 
 <details>
 <summary><b>The three weeks: plan and status</b></summary>
@@ -463,6 +571,8 @@ The midterm's pitch, plan, progress and peer feedback.
 3. Basic Road mode: flat swept ribbon with lane-marking UVs.
 </details>
 
+<a id="log-fence"></a>
+
 <details>
 <summary><b>Progress log: Fence mode (0.7.0)</b></summary>
 
@@ -486,6 +596,8 @@ The midterm's pitch, plan, progress and peer feedback.
 
 **Checked by tests:** 11 new fence tests (51 in all) and a fence session in the window test. They are listed under [Testing](#testing).
 </details>
+
+<a id="log-gates"></a>
 
 <details>
 <summary><b>Progress log: Gates (0.8.0)</b></summary>
@@ -513,6 +625,8 @@ The midterm's pitch, plan, progress and peer feedback.
 **Checked by tests:** 6 new tests (57 in all) and gate steps in the window test.
 </details>
 
+<a id="lessons"></a>
+
 <details>
 <summary><b>Lessons from my previous tool</b></summary>
 
@@ -526,6 +640,8 @@ In September I built `CableHoseRigTool.py`, a one-shot generator: it computed ev
 | Sag scaled by span length; catenary shape | | Clear was all-or-nothing → per-cable Load / Delete |
 | Multi-pick spans → grown into waypoint routing | | |
 </details>
+
+<a id="peer-run"></a>
 
 <details>
 <summary><b>Peer run: Tong Lin, and what changed</b></summary>
@@ -553,8 +669,12 @@ Those led to the physics solver.
 | ![Cables before: faceted tubes, kinks at the ends, cables through objects](docs/images/peer-run-before.png) | ![Cables after: smooth tubes draped over the cube and sphere, hanging naturally](docs/images/peer-run-after.png) |
 </details>
 
+<a id="window-chinese"></a>
+
 <details>
 <summary><b>The window in Chinese</b></summary>
 
 <img src="docs/images/window-zh.png" alt="The Cable Tool window in Simplified Chinese" width="300">
 </details>
+
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
