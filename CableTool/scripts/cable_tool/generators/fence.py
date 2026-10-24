@@ -9,9 +9,10 @@ Network:
         --> fenceToolBuilder --> outPosts   -> <name>_posts_geo
                              --> outRails   -> <name>_rails_geo
                              --> outPickets -> <name>_pickets_geo
+                             --> outGate    -> <name>_gate_geo
 
-Posts, rails and pickets are separate meshes so each can get its own
-material. The layout itself is in cable_tool.fence.
+Posts, rails, pickets and the gate are separate meshes so each can get
+its own material. The layout itself is in cable_tool.fence.
 """
 
 import maya.cmds as cmds
@@ -68,6 +69,7 @@ class FenceGenerator(BaseGenerator):
                    "railDepth", "roundRails", "railInline", "railSag")),
         ("Pickets", ("pickets", "picketHeight", "picketWidth", "picketGap",
                      "picketThickness", "picketPoint")),
+        ("Gate", ("gateAnchor", "gateDouble", "gateHingeFlip", "gateSwing")),
         ("Surface", ("wear", "fenceSeed", "fenceUvRepeat")),
     )
     presets = PRESETS
@@ -87,7 +89,7 @@ class FenceGenerator(BaseGenerator):
     )
     # Mesh output -> the part it becomes.
     PARTS = (("outPosts", "posts"), ("outRails", "rails"),
-             ("outPickets", "pickets"))
+             ("outPickets", "pickets"), ("outGate", "gate"))
 
     def _check_dependencies(self):
         if not cmds.pluginInfo("cableTool", query=True, loaded=True):

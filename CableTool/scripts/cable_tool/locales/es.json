@@ -227,5 +227,14 @@
  "Your own picket, modelled standing on the origin with its face toward +Z. It's scaled to Picket Height. Empty: a plain board.": "Tu propia tabla, modelada de pie sobre el origen con la cara hacia +Z. Se escala a la Altura de tabla. Vacío: una tabla simple.",
  "A flat swept ribbon along the route with lane-marking UVs. Planned next.": "Una cinta plana barrida a lo largo de la ruta con UV para marcas de carril. Prevista a continuación.",
  "{0} set to {1}; it applies on Generate or Rebuild.": "{0} fijado en {1}; se aplica al Generar o Reconstruir.",
- "{0} cleared: the default is used.": "{0} vaciado: se usa el predeterminado."
+ "{0} cleared: the default is used.": "{0} vaciado: se usa el predeterminado.",
+ "Gate After Anchor": "Puerta tras el ancla",
+ "0 = no gate. N = the run from anchor N to the next becomes a gate between two gate posts (Start is anchor 1). On an open route, the last anchor's number hangs a gate across the gap from End back to Start.": "0 = sin puerta. N = el tramo del ancla N a la siguiente se convierte en una puerta entre dos postes de puerta (Inicio es el ancla 1). En una ruta abierta, el número de la última ancla cuelga una puerta en el hueco entre Fin e Inicio.",
+ "Double Gate": "Puerta doble",
+ "Two leaves meeting in the middle, for a wide opening such as a farm or driveway gate.": "Dos hojas que se juntan en el centro, para una abertura ancha como la puerta de una granja o de un acceso de coches.",
+ "Hinge On Other Post": "Bisagra en el otro poste",
+ "Hang a single gate from the other gate post.": "Cuelga una puerta simple del otro poste de puerta.",
+ "Gate Swing": "Apertura de puerta",
+ "How far the gate is open, in degrees. Positive swings it to the front, negative to the back. Keyable on the fence's group: key it to animate the gate opening.": "Cuánto está abierta la puerta, en grados. Positivo la abre hacia el frente, negativo hacia atrás. Admite claves en el grupo de la valla: ponle claves para animar la apertura.",
+ "Gate": "Puerta"
 }

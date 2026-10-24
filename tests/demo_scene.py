@@ -168,22 +168,24 @@ def rolling_ground():
 
 def farm():
     """A picket-fenced yard with a gate, a ranch fence curving over the
-    hill, a wire fence along the back, a privacy fence and a pipe railing
-    on a concrete wall. Every fence stands on the rolling ground except
+    hill, a wire fence with a farm gate along the back, a privacy fence
+    and a pipe railing on a concrete wall. Every fence stands on the rolling ground except
     the railing, which rides the wall."""
     ground = rolling_ground()
     fences = []
 
-    # The yard: from one gate post round three corners to the other.
+    # The yard: from one gate post round three corners to the other, and
+    # a gate back across the gap (Gate After Anchor = the last anchor).
     house = cmds.polyCube(name="house", width=5, height=3.5, depth=4)[0]
     cmds.xform(house, worldSpace=True, translation=(-17, 1.4, 0))
     _paint("houseMtl", (0.75, 0.62, 0.5), [house])
     yard = [_locator("yard{0}".format(i), (x, 3, z)) for i, (x, z) in
-            enumerate(((-13, -6), (-9, -6), (-9, 6), (-24, 6), (-24, -6),
-                       (-16, -6)))]
-    picket = _fence(yard, "Picket Fence", ground, fenceFlip=1)
+            enumerate(((-14, -6), (-9, -6), (-9, 6), (-24, 6), (-24, -6),
+                       (-15.3, -6)))]
+    picket = _fence(yard, "Picket Fence", ground, fenceFlip=1,
+                    gateAnchor=len(yard), gateSwing=-40.0)
     _paint("whitePaintMtl", (0.9, 0.9, 0.86),
-           _parts(picket, "posts", "rails", "pickets"))
+           _parts(picket, "posts", "rails", "pickets", "gate"))
     fences.append(picket)
 
     # A ranch fence curving over the hill.
@@ -193,11 +195,13 @@ def farm():
     _paint("woodMtl", (0.45, 0.3, 0.18), _parts(ranch, "posts", "rails"))
     fences.append(ranch)
 
-    # A sagging wire fence along the back of the field.
+    # A sagging wire fence along the back of the field, with a double
+    # tubular farm gate between anchors 2 and 3, standing open.
     wire = _fence([_locator("wire{0}".format(i), (x, 3, 15)) for i, x in
-                   enumerate((-30, 0, 30))], "Wire Fence", ground)
+                   enumerate((-30, -2, 2, 30))], "Wire Fence", ground,
+                  gateAnchor=2, gateDouble=1, gateSwing=-60.0)
     _paint("oldWoodMtl", (0.36, 0.3, 0.24), _parts(wire, "posts"))
-    _paint("steelMtl", (0.55, 0.57, 0.6), _parts(wire, "rails"))
+    _paint("steelMtl", (0.55, 0.57, 0.6), _parts(wire, "rails", "gate"))
     fences.append(wire)
 
     # A privacy fence screening the yard's back.

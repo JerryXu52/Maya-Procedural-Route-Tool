@@ -15,7 +15,7 @@ import maya.api.OpenMaya as om
 import maya.cmds as cmds
 
 VENDOR = "JerryXu52"
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 
 def maya_useNewAPI():

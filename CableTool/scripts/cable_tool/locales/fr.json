@@ -227,5 +227,14 @@
  "Your own picket, modelled standing on the origin with its face toward +Z. It's scaled to Picket Height. Empty: a plain board.": "Votre propre latte, modélisée debout sur l'origine, face vers +Z. Elle est mise à l'échelle de la Hauteur des lattes. Vide : une planche simple.",
  "A flat swept ribbon along the route with lane-marking UVs. Planned next.": "Un ruban plat balayé le long du tracé avec des UV de marquage de voies. Prévu ensuite.",
  "{0} set to {1}; it applies on Generate or Rebuild.": "{0} défini sur {1} ; appliqué à la génération ou à la reconstruction.",
- "{0} cleared: the default is used.": "{0} vidé : la valeur par défaut est utilisée."
+ "{0} cleared: the default is used.": "{0} vidé : la valeur par défaut est utilisée.",
+ "Gate After Anchor": "Portail après l'ancre",
+ "0 = no gate. N = the run from anchor N to the next becomes a gate between two gate posts (Start is anchor 1). On an open route, the last anchor's number hangs a gate across the gap from End back to Start.": "0 = pas de portail. N = le tronçon de l'ancre N à la suivante devient un portail entre deux poteaux de portail (Début est l'ancre 1). Sur un tracé ouvert, le numéro de la dernière ancre suspend un portail dans l'écart entre Fin et Début.",
+ "Double Gate": "Portail double",
+ "Two leaves meeting in the middle, for a wide opening such as a farm or driveway gate.": "Deux battants qui se rejoignent au milieu, pour une large ouverture comme un portail de ferme ou d'allée.",
+ "Hinge On Other Post": "Gonds sur l'autre poteau",
+ "Hang a single gate from the other gate post.": "Suspend un portail simple à l'autre poteau de portail.",
+ "Gate Swing": "Ouverture du portail",
+ "How far the gate is open, in degrees. Positive swings it to the front, negative to the back. Keyable on the fence's group: key it to animate the gate opening.": "De combien le portail est ouvert, en degrés. Positif l'ouvre vers l'avant, négatif vers l'arrière. Animable sur le groupe de la clôture : posez des clés pour animer l'ouverture.",
+ "Gate": "Portail"
 }

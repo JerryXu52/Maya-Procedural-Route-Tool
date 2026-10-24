@@ -160,6 +160,12 @@ def run():
     assert fence.mode == "fence" and cmds.getAttr(fence.group + ".pickets")
     win.fields["fence"]["postHeight"].field.setValue(1.6)
     assert abs(cmds.getAttr(fence.group + ".postHeight") - 1.6) < 1e-6
+    # A gate in the first run, swung open from its slider.
+    win.fields["fence"]["gateAnchor"].field.setValue(1)
+    win.fields["fence"]["gateSwing"].field.setValue(70.0)
+    gate = cmds.ls(fence.group + "|*_gate_geo")[0]
+    assert cmds.polyEvaluate(gate, face=True) > 0
+    assert cmds.getAttr(fence.group + ".gateSwing") == 70.0
     # Loading the cable switches the window back to Cable / Pipe.
     cmds.select(geo)
     win.on_load_selected()

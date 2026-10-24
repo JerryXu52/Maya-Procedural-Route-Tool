@@ -7,7 +7,7 @@ A Maya Python/Qt plugin that builds live geometry along a route of picked object
 | Mode | Status | What it builds |
 |---|---|---|
 | **Cable / Pipe** | ✅ complete | Physically hanging cables, pipes and wire bundles that sag, drape over supports, plug into surfaces along their normals and never pass through the objects they touch |
-| **Fence** | ✅ complete | Posts, rails and pickets that step over uneven ground, turn corners with mitred rails and close into yards |
+| **Fence** | ✅ complete | Posts, rails and pickets that step over uneven ground, turn corners with mitred rails, close into yards and hang gates you can animate |
 | **Road** | planned | A flat ribbon with lane-marking UVs (listed greyed out in the Mode dropdown) |
 
 Built for SVA *Programming for Animators* (midterm).
@@ -15,8 +15,8 @@ Built for SVA *Programming for Animators* (midterm).
 | Utility poles | Cyberpunk alley |
 |---|---|
 | ![Four utility poles with parallel power lines resting on the crossarms](docs/images/utility-poles.png) | ![Tangled wire bundles strung between two buildings, one draped over a pipe, and a clamped service pipe](docs/images/cyberpunk-alley.png) |
-| **Picket-fenced yard on rolling ground** | **Ranch rail curving over a hill** |
-| ![A white picket fence round a house, its pickets following the ground, with a gate gap](docs/images/fence-yard.png) | ![A three-rail ranch fence on a curved path over a hill, posts slightly weathered](docs/images/fence-ranch.png) |
+| **Picket-fenced yard with its gate swung open** | **Ranch rail curving over a hill** |
+| ![A white picket fence round a house, its pickets following the ground, with a braced picket gate swung open into the yard](docs/images/gate-yard.png) | ![A three-rail ranch fence on a curved path over a hill, posts slightly weathered](docs/images/fence-ranch.png) |
 
 **Contents:** [Features](#features) · [Install](#install) · [Quick start](#quick-start) · [Using the tool](#using-the-tool) · [How it works](#how-it-works) · [Project layout](#project-layout) · [Testing](#testing) · [Known limits](#known-limits) · [Roadmap](#roadmap) · [Course record](#course-record)
 
@@ -35,6 +35,7 @@ Built for SVA *Programming for Animators* (midterm).
 - **Stands on the ground.** Pick a **Ground** mesh and every post and picket is dropped onto it, so the fence steps over hills and the pickets follow the slope one by one. Move or reshape the ground and the fence follows.
 - **Built like a real fence.** Rails are straight lumber from post to post, fixed to the posts' front face (or through them) and **mitred** where the fence turns, so corners close without gaps or overlaps. Pickets are nailed to the front of the rails.
 - **Many kinds of fence from one tool:** square or round posts with flat or pointed caps; board rails, or round rails that act as **sagging wires** or **pipe railings**; pickets with any width, gap and point; a curved or straight path.
+- **Gates.** Turn any run into a gate between two heavier gate posts, or close the gap at the end of a yard with one. The gate matches its fence: a braced board frame with the fence's pickets, or a tubular steel farm gate on a wire fence, with hinges and a latch, single or double. **Gate Swing** opens it and is keyable, so the gate can be animated; swinging rebuilds only the gate.
 - **Your own parts.** Use any mesh as the post or the picket; it keeps its UVs and its hard and soft edges.
 - **Wear.** Posts and pickets lean and vary in height for an old fence, repeatable with a seed.
 - **Ready to texture:** posts, rails and pickets are separate meshes (one material each), with UVs in scene units and the grain along every board.
@@ -64,7 +65,7 @@ Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **W
 6. Move any anchor: the build follows. The sliders edit it live.
 
 **Demo scenes:** in the Script Editor, run `exec(open("/path/to/tests/demo_scene.py").read())`. It builds the utility poles and cyberpunk alley shown above. Then call:
-- `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence, a privacy fence and a pipe railing on a wall.
+- `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence with a double farm gate, a privacy fence and a pipe railing on a wall.
 - `demo("peer")` for the peer-review scene (cone, cube, sphere, cylinder).
 
 ## Using the tool
@@ -108,19 +109,22 @@ Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **W
 | **Posts** | Post Mesh (optional) · Post Height · Post Width · Round Posts · Post Cap |
 | **Rails** | Rail Count · Lowest Rail · Highest Rail · Rail Size · Rail Thickness · Round Rails · Rails Through Posts · Rail Sag |
 | **Pickets** | Picket Mesh (optional) · Pickets · Picket Height · Picket Width · Picket Gap · Picket Thickness · Picket Point |
+| **Gate** | Gate After Anchor · Double Gate · Hinge On Other Post · Gate Swing |
 | **Surface** | Wear · Seed · Texture Repeat per Unit |
 
 - **Everything is live,** including the number of posts and pickets: drag an anchor and posts are added or removed as the fence grows.
 - **Heights are above the ground**, so a 1.2 m post is 1.2 m tall on a slope too. Without a Ground mesh the fence runs at the anchors' height.
-- **Gates and yards.** Leave a gap by starting and ending the route at the two gate posts. To close a ring, end the route on the anchor it started from.
+- **Gates.** Anchors are numbered along the route, Start = 1. *Gate After Anchor* N turns the run from anchor N to N + 1 into a gate: a gate post on each anchor and the gate across. Put the two anchors a gate's width apart (about 1–1.2 m for a garden gate, 3–4 m for a double farm gate).
+- **Yards.** Start and end the route at the two gate posts and set *Gate After Anchor* to the last anchor's number: the gate closes the gap from End back to Start. To close a ring with no gate, end the route on the anchor it started from.
+- **Animating the gate:** key **Gate Swing** on the fence's group (it's in the Channel Box). Positive opens to the front, negative to the back. Keys and other connections on settings survive Rebuild.
 - **Wire fence:** turn on *Round Rails*, make *Rail Size* small and add a little *Rail Sag*. **Pipe railing:** round posts and rails with *Rails Through Posts*.
 - **Post Mesh / Picket Mesh:** model the part standing on the origin, its front toward +X (a post) or +Z (a picket). It is scaled to Post Height or Picket Height. Picking one applies on Generate or Rebuild.
 
 <br clear="right">
 
-| Wire fence over the hill | The whole farm demo |
+| Wire fence with a double farm gate | The whole farm demo |
 |---|---|
-| ![Round posts carrying four sagging wires over rolling ground](docs/images/fence-wire.png) | ![Five fences on rolling ground: wire, privacy, picket yard and ranch rail](docs/images/fence-farm.png) |
+| ![Round posts carrying four sagging wires over rolling ground, with a two-leaf tubular steel gate standing open](docs/images/fence-wire.png) | ![Five fences on rolling ground: wire, privacy, picket yard and ranch rail](docs/images/fence-farm.png) |
 
 ## How it works
 ### Cable / Pipe network (per wire)
@@ -156,7 +160,8 @@ Tuned on a test cable to keep length within about 1% and bends no tighter than a
 anchor.worldMatrix (+ mesh for a vertex/face) ─┐
 ground.outMesh + ground.worldMatrix ───────────┤                    ┌─▶ outPosts   ─▶ <name>_posts_geo
 post / picket mesh.outMesh ────────────────────┼─▶ fenceToolBuilder ┼─▶ outRails   ─▶ <name>_rails_geo
-fence group settings ──────────────────────────┘                    └─▶ outPickets ─▶ <name>_pickets_geo
+fence group settings ──────────────────────────┘                    ├─▶ outPickets ─▶ <name>_pickets_geo
+                                                                    └─▶ outGate    ─▶ <name>_gate_geo
 ```
 #### The fence builder (`fenceToolBuilder`)
 A second `MPxNode` that makes the meshes itself, rather than with Sweep Mesh, so the number of posts and pickets can change live while an anchor is dragged. Every time an input changes it:
@@ -165,6 +170,14 @@ A second `MPxNode` that makes the meshes itself, rather than with Sweep Mesh, so
 2. **Places the posts:** each run between anchors is divided into equal gaps no longer than *Post Spacing* (or the whole route, with *Post At Every Anchor* off). With a Ground mesh, a ray straight down (and up) through each post finds the ground; posts go half a post width into it so slopes never show a gap. *Wear* tilts each post's axis and varies its height from its own random stream (Seed + post number), so adding a post at the end never reshuffles the others.
 3. **Joins them with rails:** every rail runs from post to post at its height up the post's axis (so rails follow a leaning post), stepped out to the front face. At a post where the fence turns, both rails step out along the **mitre** (the bisector of the two spans' sides, scaled by 1 ÷ cos of half the turn, capped for very sharp turns), so their ends meet exactly. Board rails are boxes with mitred ends; round rails are tubes that sag on a parabola.
 4. **Fills the spans with pickets:** evenly spread over each span at *Picket Width* + *Picket Gap*, each dropped onto the ground on its own and nailed in front of the rails. A picket is its outline (with a point if *Picket Point* > 0) extruded by *Picket Thickness*.
+5. **Hangs the gate:** the gate's run gets no posts in between, its two posts are 1.4× thicker and set upright (no wear, or the gate would bind), and the run gets no rails or pickets. The gate is built in its own frame (X from the hinge across the opening, Y up, Z to the front):
+   - **Size:** the opening between the gate posts less a gap at each side. It hangs level, clearing the higher of its two posts' ground.
+   - **Board gate:** two stiles, a rail at each of the fence's rail heights, and a brace running from the bottom of the hinge side up to the latch side. That is the way round that holds the latch end up.
+   - **Tubular gate:** with Round Rails, a steel gate made of tubes instead.
+   - **Pickets** in the fence's style, **hardware** (a T-hinge strap and barrel at the top and bottom rails, a latch on the free end), and for a double gate a second leaf hinged on the other post.
+   - **Swing:** the frame is rotated by *Gate Swing* about the hinge.
+
+**Swinging is cheap.** *Gate Swing*, *Double Gate* and *Hinge On Other Post* affect only `outGate` (`attributeAffects`). When only the gate is dirty, the node rebuilds just the gate from the layout it kept from its last full build, in about 1.4 ms instead of rebuilding the whole fence. Keyed gate animation plays at about 8 ms a frame in the demo, including the viewport.
 
 **Mesh details:**
 - **Boards** get their own vertices per face, so their edges are hard. **Round parts** share vertices round their sides, so they shade smooth.
@@ -173,6 +186,7 @@ A second `MPxNode` that makes the meshes itself, rather than with Sweep Mesh, so
 - **Speed:** face building uses plain Python maths on 3-vectors instead of numpy calls, which made the yard fence (1,300 parts) about 3× faster to drag.
 
 ### Shared parts
+- **Rebuild keeps animation:** keys or other connections driving a build's settings are unplugged before Rebuild deletes the old group and plugged into the new one, so an animated Gate Swing or Sag survives. A build made by an older version reads newer settings as their defaults, and the first change to one rebuilds it with them.
 - **Modes:** `generators.GENERATORS` lists every mode. The dropdown, the settings panels, the pickers and the Generate button are built from it. A mode declares its settings, presets and picked meshes, and builds its own network; the shared base handles the group, stored settings, anchors, Load, Rebuild, Bake and Delete.
 - **Scene safety:**
   - **Undo:** one undo chunk per action, and a whole slider drag is a single Ctrl+Z.
@@ -204,7 +218,7 @@ CableTool/                       the Maya module (point Maya here)
     └── generators/              one generator per mode (registry, base, cable, fence, planned)
 docs/images/                     screenshots for this README
 tests/
-├── test_cable_rig.py            51 headless rig, physics, fence and language tests
+├── test_cable_rig.py            57 headless rig, physics, fence, gate and language tests
 ├── test_ui.py                   headless window test
 └── demo_scene.py                utility poles, cyberpunk alley, farm, peer-review scene
 ```
@@ -226,16 +240,20 @@ They cover:
   - **Ground:** posts stand on a sloped ground and follow it when it moves.
   - **Routes and parts:** closed rings without a doubled post, pickets on and off, custom post meshes, repeatable wear.
   - **Presets and undo:** every preset builds and loads back, and a build is one undo step.
+  - **Gates:** a gate in its run between thicker gate posts with no rails behind it, swinging live and from keys, double gates, the closing gate of a yard, keys surviving Rebuild, and a fence from 0.7.0 upgrading when given a gate.
 - **Scene safety:** undo, cleanup and the installer.
 - **Languages:** every string translated in every language, with its placeholders.
-- **Window:** a full session in each of the five languages, including building and loading a fence.
+- **Window:** a full session in each of the five languages, including building, gating and loading a fence.
 
 ## Known limits
 - **Speed with many wires:** dragging a crossarm that carries dozens of wires re-solves all of them, at about 0.16 s per update in the demo. A picket fence with about 1,300 parts updates in about 0.05 s.
 - **Sharp edges:** where a cable bends over a sharp edge, the tube can graze it by up to about a fifth of its radius. It never cuts through.
 - **Fence corners:** pickets stop at each corner post, so a very tight corner shows a small gap between the two runs' pickets, as on a real fence. Square posts turn to face the bisector of a corner.
 - **Fence ground:** each post and picket is dropped straight down (or up) onto the Ground mesh. Where the ground has no surface under a part, it stays at the route's height.
-- **No gates yet:** a gate is a gap in the route.
+- **Gates:**
+  - **Steep slopes:** a gate hangs level and clears the higher post's ground, so on a steep slope the gap under its low end grows, as on a real gate.
+  - **No collision:** a swinging gate doesn't stop at the ground or at nearby fences.
+  - **One gate per fence:** for a second gate, build a second fence.
 - **Unloading:** Maya won't unload the plugin while any cable or fence exists (even in the undo queue). Start a new scene first.
 - **Platforms:** tested in Maya 2026 on macOS only.
 
@@ -248,9 +266,9 @@ Cables, fences and roads are all built along a route, so the mode architecture l
 | Main geometry | ✅ round tube (Sweep Mesh) | ✅ board or round rails | flat, wide surface |
 | Parts along the length | ✅ clamps | ✅ posts and pickets | lamp posts, markers |
 | Length-wise UVs | ✅ ribbed / striped | ✅ wood grain | **lane markings** |
-| Hard part | ✅ contact and attachment | ✅ uneven ground, corners; gates next | terrain conforming, banking, intersections |
+| Hard part | ✅ contact and attachment | ✅ uneven ground, corners, animated gates | terrain conforming, banking, intersections |
 
-Next: gates for Fence (a hinged panel between two posts), then basic Road mode.
+Next: basic Road mode. For Fence, possible later steps: more than one gate per fence, and stopping a swinging gate at the ground.
 
 ---
 
@@ -318,6 +336,32 @@ The midterm's pitch, plan, progress and peer feedback.
 | The Clamp Mesh picker's messages only talked about clamps | Picker messages name whichever mesh was picked (Ground, Post Mesh, ...) |
 
 **Checked by tests:** 11 new fence tests (51 in all) and a fence session in the window test. They are listed under [Testing](#testing).
+</details>
+
+<details>
+<summary><b>Progress log: Gates (0.8.0)</b></summary>
+
+**Design.**
+- **Placing it:** a gate is a run of the route, so placing one needs no new picking: *Gate After Anchor* names the run. On an open route, the last anchor's number means the missing run from End back to Start, which is exactly how a yard with a gate is drawn.
+- **Its own mesh:** the gate is a fourth mesh, so it can take its own material.
+- **Animation:** *Gate Swing* is a keyable setting on the fence's group, so animators can key the gate opening like any other channel.
+
+**Built:**
+- **Gate posts:** heavier and set upright, with the run's rails and pickets left out.
+- **Gate styles:** a braced board gate with the fence's pickets, or a tubular steel gate for wire and pipe fences, with T-hinges and a latch.
+- **Leaves:** single or double, hinged on either post.
+- **Speed:** a gate-only fast path in the node.
+- **Rebuild:** keeps keys on settings.
+- **Upgrade:** an older fence gains the new settings when you first change one.
+- **Wiring:** translations, and the farm demo now has a garden gate and a double farm gate.
+
+**Tested in Maya:**
+- **Closed:** the yard gate lines up with the fence, its pickets continue the fence's rhythm and the brace runs from the bottom of the hinge side.
+- **Keyed:** Gate Swing from 0° to −95° over 24 frames swings it into the yard at about 8 ms a frame.
+- **Farm gate:** the two leaves of the double gate stand open in the wire fence.
+- **A bug found and fixed:** looking at a keyed gate in the window raised a question: what happens on Rebuild? Deleting the old group would have deleted its animation. Rebuild now carries keys and connections across, for cables too.
+
+**Checked by tests:** 6 new tests (57 in all) and gate steps in the window test.
 </details>
 
 <details>

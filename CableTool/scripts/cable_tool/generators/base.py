@@ -81,8 +81,14 @@ class BaseGenerator(object):
     def exists(self):
         return bool(self.group) and nodes.is_cable_group(self.group)
 
+    def _has_setting(self, key):
+        return cmds.attributeQuery(key, node=self.group, exists=True)
+
     def read_settings(self):
+        """The build's settings. One made by an older version lacks the
+        newer settings; those read as their defaults."""
         return {key: cmds.getAttr(self.group + "." + key)
+                if self._has_setting(key) else DEFAULTS[key]["default"]
                 for key in self.setting_keys()}
 
     def read_route(self):
@@ -149,9 +155,15 @@ class BaseGenerator(object):
         the group; settings that change the network's structure rebuild it
         in place. Returns the keys that caused a rebuild."""
         clean = self.sanitize(settings)
+        missing = [key for key in settings if key in clean
+                   and not self._has_setting(key)]
         changed = {key: clean[key] for key in settings if key in clean
-                   and cmds.getAttr(self.group + "." + key) != clean[key]}
-        structural = [key for key in changed if DEFAULTS[key]["rebuild"]]
+                   and (key in missing or cmds.getAttr(
+                       self.group + "." + key) != clean[key])}
+        # A setting this build doesn't have yet (it was made by an older
+        # version) needs the network rebuilt to wire it in.
+        structural = [key for key in changed if DEFAULTS[key]["rebuild"]
+                      or key in missing]
         if structural:
             route = self.read_route()
             merged = dict(self.read_settings(), **changed)
@@ -162,11 +174,33 @@ class BaseGenerator(object):
         return []
 
     def rebuild(self, route, settings, extras=None):
-        """Rebuild in place, keeping the build's name."""
+        """Rebuild in place, keeping the build's name, and the keys or
+        other connections driving its settings (an animated Gate Swing,
+        say): deleting the group would otherwise delete its animation."""
         name = self.name
         with nodes.undo_chunk("CableTool_Rebuild"):
+            drivers = self._setting_drivers()
+            for source, key in drivers:
+                cmds.disconnectAttr(source, self.group + "." + key)
             self.delete()
-            return self.build(route, settings, name=name, extras=extras)
+            group = self.build(route, settings, name=name, extras=extras)
+            for source, key in drivers:
+                if cmds.objExists(source) and key in settings:
+                    cmds.connectAttr(source, group + "." + key, force=True)
+            return group
+
+    def _setting_drivers(self):
+        """(source plug, setting) for every setting driven by something,
+        such as an animation curve."""
+        drivers = []
+        for key in self.setting_keys():
+            if not self._has_setting(key):
+                continue
+            source = cmds.listConnections(self.group + "." + key, source=True,
+                                          destination=False, plugs=True)
+            if source:
+                drivers.append((source[0], key))
+        return drivers
 
     def bake(self):
         """Freeze the build into plain meshes with no history, then remove

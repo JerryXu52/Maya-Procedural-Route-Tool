@@ -8,7 +8,7 @@ never disagree.
 import math
 
 TOOL_NAME = "Cable Tool"
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 
 # Attribute added to every node the tool creates. Its value is the UUID
 # of the cable's group, so cleanup finds nodes by tag, never by name.
@@ -263,6 +263,29 @@ DEFAULTS = {
                     "type": "float", "rebuild": False, "label": "Picket Point",
                     "tip": "How pointed the picket tops are. 0 = flat, "
                            "1 = a 45-degree point."},
+    "gateAnchor": {"default": 0, "slider": (0, 10), "field": (0, 200),
+                   "type": "int", "rebuild": False,
+                   "label": "Gate After Anchor",
+                   "tip": "0 = no gate. N = the run from anchor N to the "
+                          "next becomes a gate between two gate posts "
+                          "(Start is anchor 1). On an open route, the last "
+                          "anchor's number hangs a gate across the gap from "
+                          "End back to Start."},
+    "gateDouble": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                   "type": "bool", "rebuild": False, "label": "Double Gate",
+                   "tip": "Two leaves meeting in the middle, for a wide "
+                          "opening such as a farm or driveway gate."},
+    "gateHingeFlip": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                      "type": "bool", "rebuild": False,
+                      "label": "Hinge On Other Post",
+                      "tip": "Hang a single gate from the other gate post."},
+    "gateSwing": {"default": 0.0, "slider": (-110.0, 110.0),
+                  "field": (-180.0, 180.0), "type": "float",
+                  "rebuild": False, "label": "Gate Swing",
+                  "tip": "How far the gate is open, in degrees. Positive "
+                         "swings it to the front, negative to the back. "
+                         "Keyable on the fence's group: key it to animate "
+                         "the gate opening."},
     "wear": {"default": 0.0, "slider": (0.0, 1.0), "field": (0.0, 1.0),
              "type": "float", "rebuild": False, "label": "Wear",
              "tip": "Age: posts and pickets lean and differ in height. "

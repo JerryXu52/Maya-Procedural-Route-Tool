@@ -879,6 +879,114 @@ def fence_build_is_one_undo_step():
     assert set(cmds.ls()) == before, set(cmds.ls()) ^ before
 
 
+def gate_route():
+    # A 1.2-unit gap between B and C: the gate's run.
+    return [locator(n, p) for n, p in (("A", (0, 0, 0)), ("B", (6, 0, 0)),
+                                       ("C", (7.2, 0, 0)), ("D", (13, 0, 0)))]
+
+
+@test
+def gate_hangs_in_its_run_between_gate_posts():
+    built = fence(gate_route(), postSpacing=2.0, railCount=2, gateAnchor=2)
+    gate = fence_part(built, "gate")
+    box = bbox(gate)
+    assert 6.0 < box[0] and box[3] < 7.2, box
+    assert signed_volume(gate) > 0
+    # No posts or rails inside the gate's run: 3 + 3 spans either side.
+    assert post_count(built) == 8, post_count(built)
+    rails = fence_part(built, "rails")
+    assert cmds.polyEvaluate(rails, face=True) == 6 * 2 * 6
+    # Gate posts are heavier than the others.
+    widths = []
+    for x in (4.0, 6.0):
+        near = [p for p in _points(fence_part(built, "posts"))
+                if abs(p[0] - x) < 0.2 and abs(p[1] - 0.5) < 0.6]
+        widths.append(max(p[0] for p in near) - min(p[0] for p in near))
+    assert widths[1] > widths[0] * 1.3, widths
+    cmds.setAttr(built.group + ".gateAnchor", 0)
+    assert cmds.polyEvaluate(gate, face=True) == 0
+
+
+@test
+def gate_swings_live_and_can_be_animated():
+    built = fence(gate_route(), gateAnchor=2, railDepth=0.04)
+    gate = fence_part(built, "gate")
+    closed = bbox(gate)
+    assert closed[5] - closed[2] < 0.1  # in the fence line
+    plug = built.group + ".gateSwing"
+    cmds.setKeyframe(plug, time=1, value=0.0)
+    cmds.setKeyframe(plug, time=10, value=90.0)
+    cmds.currentTime(10)
+    open_box = bbox(gate)
+    # Swung 90 degrees to the front (+Z for a route along +X): the gate
+    # now reaches about its own width out of the fence line.
+    assert open_box[5] > 0.8 and open_box[3] - open_box[0] < 0.3, open_box
+    cmds.currentTime(1)
+    assert close(bbox(gate), closed)
+    cmds.setAttr(plug, lock=False)
+    cmds.cutKey(plug)
+    cmds.setAttr(plug, -90.0)
+    assert bbox(gate)[2] < -0.8  # negative swings to the back
+
+
+@test
+def double_gate_has_two_leaves_meeting_in_the_middle():
+    route = gate_route()
+    cmds.move(9.0, 0, 0, route[2], absolute=True)  # a 3-unit opening
+    built = fence(route, gateAnchor=2, gateDouble=1, gateSwing=90.0)
+    box = bbox(fence_part(built, "gate"))
+    # Both leaves swing out from their own post.
+    assert box[0] < 6.3 and box[3] > 8.7 and box[5] > 1.0, box
+
+
+@test
+def last_anchor_closes_an_open_route_with_a_gate():
+    corners = [locator("C{0}".format(i), p) for i, p in enumerate(
+        ((1, 0, 0), (6, 0, 0), (6, 0, 6), (0, 0, 6), (0, 0, 1)))]
+    built = fence(corners, postSpacing=2.0, gateAnchor=5)
+    box = bbox(fence_part(built, "gate"))
+    # The gate spans the gap from (0, 0, 1) back to (1, 0, 0).
+    assert box[3] < 1.2 and box[5] < 1.2, box
+    two = fence([locator("P", (20, 0, 0)), locator("Q", (24, 0, 0))],
+                gateAnchor=2)
+    assert cmds.polyEvaluate(fence_part(two, "gate"), face=True) == 0
+
+
+@test
+def keys_on_settings_survive_rebuild():
+    built = fence(gate_route(), gateAnchor=2)
+    plug = built.group + ".gateSwing"
+    cmds.setKeyframe(plug, time=1, value=0.0)
+    cmds.setKeyframe(plug, time=10, value=80.0)
+    built.rebuild(built.read_route(), built.read_settings(),
+                  built.read_extras())
+    plug = built.group + ".gateSwing"
+    assert cmds.keyframe(plug, query=True, keyframeCount=True) == 2
+    cmds.currentTime(10)
+    assert abs(cmds.getAttr(plug) - 80.0) < 1e-6
+    # A cable's keyed Sag survives Wire Count rebuilding the run.
+    a = locator("P", (0, 5, 0))
+    b = locator("Q", (10, 5, 0))
+    cable = build([a, b])
+    cmds.setKeyframe(cable.group + ".sag", time=1, value=0.3)
+    assert cable.update({"wireCount": 3}) == ["wireCount"]
+    assert cmds.keyframe(cable.group + ".sag", query=True,
+                         keyframeCount=True) == 1
+
+
+@test
+def fence_from_an_older_version_gains_gate_settings():
+    built = fence(gate_route())
+    for key in ("gateAnchor", "gateDouble", "gateHingeFlip", "gateSwing"):
+        cmds.deleteAttr(built.group + "." + key)
+    from cable_tool.generators import FenceGenerator
+    old = FenceGenerator(built.group)
+    assert old.read_settings()["gateAnchor"] == 0
+    assert old.update({"gateAnchor": 2}) == ["gateAnchor"]  # rebuilt
+    assert cmds.getAttr(old.group + ".gateAnchor") == 2
+    assert cmds.polyEvaluate(fence_part(old, "gate"), face=True) > 0
+
+
 @test
 def load_finds_cable_from_its_mesh():
     from cable_tool.generators import CableGenerator
