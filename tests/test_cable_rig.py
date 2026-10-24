@@ -283,6 +283,25 @@ def mesh_ends_sit_on_the_surface_and_lead_out():
 
 
 @test
+def cable_leaves_a_surface_without_folding():
+    # Live check in Maya: off a cone's side the spline cut straight from
+    # the lead-out point to the next anchor, bending tighter than the
+    # tube's radius, so the tube folded over itself at the end.
+    cone = cmds.polyCone(radius=1, height=2, name="cone")[0]
+    cmds.xform(cone, worldSpace=True, translation=(-8, 1, 0))
+    w = locator("W", (-3, 4, 4))
+    b = locator("B", (8, 1, 0))
+    cable = build([cone, w, b], radius=0.3)
+    shape, _geo = parts(cable)
+    low = cmds.getAttr(shape + ".minValue")
+    high = cmds.getAttr(shape + ".maxValue")
+    tightest = min(cmds.pointOnCurve(shape, parameter=low + (high - low)
+                                     * k / 400.0, curvatureRadius=True)
+                   for k in range(1, 400))
+    assert tightest > 0.3, tightest
+
+
+@test
 def modes_share_one_interface():
     from cable_tool import generators
     from cable_tool.config import CableToolError

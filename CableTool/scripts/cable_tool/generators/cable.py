@@ -74,10 +74,12 @@ def catmull_rom_weights(t):
             0.5 * (t3 - t2))
 
 
-def spline_terms(span, count, t):
+def spline_terms(span, count, t, prev=False, following=False):
     """{path point index: weight} for t on span (span -> span + 1) of a
     path with `count` points. Beyond either end the path is extended by
-    mirroring, which keeps the end tangent pointing at its neighbour."""
+    mirroring, which keeps the end tangent pointing at its neighbour.
+    prev / following replace the neighbour before / after the span with
+    a caller-supplied point, under the keys "prev" / "following"."""
     terms = {}
 
     def add(index, weight):
@@ -86,12 +88,16 @@ def spline_terms(span, count, t):
     w0, w1, w2, w3 = catmull_rom_weights(t)
     add(span, w1)
     add(span + 1, w2)
-    if span > 0:
+    if prev:
+        add("prev", w0)
+    elif span > 0:
         add(span - 1, w0)
     else:  # phantom = 2 * P0 - P1
         add(0, 2.0 * w0)
         add(1, -w0)
-    if span + 2 < count:
+    if following:
+        add("following", w3)
+    elif span + 2 < count:
         add(span + 2, w3)
     else:  # phantom = 2 * Plast - Plast-1
         add(count - 1, 2.0 * w3)
@@ -107,9 +113,10 @@ def sample_parameters(samples):
 class PathPoint(object):
     """A point the curve passes through, as a live float3 plug."""
 
-    def __init__(self, plug, kind):
+    def __init__(self, plug, kind, normal=None):
         self.plug = plug
         self.kind = kind  # "end", "lead" or "waypoint"
+        self.normal = normal  # lead points: the surface normal plug
 
 
 class CableGenerator(BaseGenerator):
@@ -188,7 +195,7 @@ class CableGenerator(BaseGenerator):
         cmds.connectAttr(offset + ".output", lead + ".input3D[1]")
 
         return (PathPoint(on_surface + ".output", "end"),
-                PathPoint(lead + ".output3D", "lead"))
+                PathPoint(lead + ".output3D", "lead", closest + ".normal"))
 
     @staticmethod
     def _spans(path, samples):
@@ -217,16 +224,48 @@ class CableGenerator(BaseGenerator):
         nodes.tag(shape, self.cable_id)
         return shape
 
-    def _weighted_sum(self, prefix, terms, path, cable_id):
+    def _normal_neighbour(self, prefix, lead, other, original, cable_id):
+        """A stand-in neighbour that makes the spline cross a lead-out
+        point along the surface normal instead of cutting straight to the
+        next anchor (which folded the tube right off the surface).
+
+        A Catmull-Rom tangent at a point is (next - previous) / 2. Leaving
+        the surface it should be +normal * span length, so the previous
+        point becomes next - 2 * length * normal; arriving it should be
+        -normal * span length, so the next point becomes previous -
+        2 * length * normal. Either way: other - 2 * length * normal.
+        With Attach off it falls back to the original neighbour."""
+        length = nodes.create("distanceBetween", prefix + "_len", cable_id)
+        cmds.connectAttr(lead.plug, length + ".point1")
+        cmds.connectAttr(other, length + ".point2")
+        reach = nodes.create("multDL", prefix + "_reach", cable_id)
+        cmds.connectAttr(length + ".distance", reach + ".input1")
+        cmds.setAttr(reach + ".input2", -2.0)
+        step = nodes.create("multiplyDivide", prefix + "_step", cable_id)
+        cmds.connectAttr(lead.normal, step + ".input1")
+        for axis in "XYZ":
+            cmds.connectAttr(reach + ".output", step + ".input2" + axis)
+        stand_in = nodes.create("plusMinusAverage", prefix + "_standIn",
+                                cable_id)
+        cmds.connectAttr(other, stand_in + ".input3D[0]")
+        cmds.connectAttr(step + ".output", stand_in + ".input3D[1]")
+        choose = nodes.create("blendColors", prefix + "_useNormal", cable_id)
+        cmds.connectAttr(stand_in + ".output3D", choose + ".color1")
+        cmds.connectAttr(original, choose + ".color2")
+        cmds.connectAttr(self.group + ".attach", choose + ".blender")
+        return choose + ".output"
+
+    def _weighted_sum(self, prefix, terms, plugs, cable_id):
+        """Sum of plug * weight for {key: weight}; plugs maps each key to
+        a float3 plug."""
         total = nodes.create("plusMinusAverage", prefix + "_spline", cable_id)
         slot = 0
-        for index, weight in sorted(terms.items()):
+        for key, weight in sorted(terms.items(), key=lambda kv: str(kv[0])):
             if abs(weight) < EPSILON:
                 continue
             scaled = nodes.create("multiplyDivide",
-                                  "{0}_w{1:02d}".format(prefix, index),
-                                  cable_id)
-            cmds.connectAttr(path[index].plug, scaled + ".input1")
+                                  "{0}_w_{1}".format(prefix, key), cable_id)
+            cmds.connectAttr(plugs[key], scaled + ".input1")
             cmds.setAttr(scaled + ".input2", weight, weight, weight)
             cmds.connectAttr(scaled + ".output",
                              "{0}.input3D[{1}]".format(total, slot))
@@ -245,6 +284,16 @@ class CableGenerator(BaseGenerator):
             prefix = "{0}_span{1:02d}".format(name, span)
             set_cv(cv, a)
             cv += 1
+
+            plugs = {i: point.plug for i, point in enumerate(path)}
+            if sags and path[span].kind == "lead":
+                plugs["prev"] = self._normal_neighbour(
+                    prefix + "_prev", path[span], b,
+                    path[span - 1].plug, cable_id)
+            if sags and path[span + 1].kind == "lead":
+                plugs["following"] = self._normal_neighbour(
+                    prefix + "_next", path[span + 1], a,
+                    path[span + 2].plug, cable_id)
 
             if sags:
                 dist = nodes.create("distanceBetween", prefix + "_dist",
@@ -272,7 +321,10 @@ class CableGenerator(BaseGenerator):
                     continue
 
                 spline = self._weighted_sum(
-                    point, spline_terms(span, len(path), t), path, cable_id)
+                    point, spline_terms(span, len(path), t,
+                                        prev="prev" in plugs,
+                                        following="following" in plugs),
+                    plugs, cable_id)
                 base = nodes.create("blendColors", point + "_smooth",
                                     cable_id)
                 cmds.connectAttr(spline, base + ".color1")
