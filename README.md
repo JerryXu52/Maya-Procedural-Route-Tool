@@ -2,258 +2,256 @@
 
 **Author:** Jianrui(Jerry) Xu
 
-A Maya 2027 Python/Qt plugin that builds live geometry along a route of picked objects, locators or mesh components. **Cable / Pipe** mode is the midterm; **Fence** and **Road** modes are planned (see [section 11](#11-future-modes-fences-and-roads)).
+A Maya Python/Qt plugin that builds **live, physically hanging cables, pipes and wire bundles** along a route of picked objects, locators, vertices or faces. Move anything the cable is attached to and it re-settles: it sags under gravity, drapes over supports, plugs into surfaces along their normals and never passes through the objects it touches.
 
-**Contents**
-- [Try it (current build)](#try-it-current-build)
-- **The Pitch:** [1. One sentence](#1-the-tool-in-one-sentence) · [2. The chore](#2-the-chore-it-ends) · [3. The UI](#3-the-ui) · [4. Why it's advanced](#4-why-its-advanced) · [5. The three weeks](#5-the-three-weeks) · [6. MVP](#6-the-smallest-version-that-still-counts-mvp) · [7. Riskiest part](#7-the-riskiest-part)
-- **Design Notes:** [8. Technical design](#8-technical-design) · [9. Plugin & packaging](#9-plugin--packaging) · [10. Lessons from my previous tool](#10-lessons-from-my-previous-tool) · [11. Future modes](#11-future-modes-fences-and-roads)
-- **Feedback:** [12. Peer run: Tong Lin](#12-peer-run-tong-lin) · [13. Fixes from the peer run](#13-fixes-from-the-peer-run) · [14. Physics solver and wire styles](#14-physics-solver-and-wire-styles) · [15. Week 3](#15-week-3-ports-surface-bake-install) · [16. Languages](#16-languages)
+Built for SVA *Programming for Animators* (midterm). **Cable / Pipe** mode is complete; **Fence** and **Road** modes are planned and already listed in the Mode dropdown.
+
+| Utility poles | Cyberpunk alley |
+|---|---|
+| ![Four utility poles with parallel power lines resting on the crossarms](docs/images/utility-poles.png) | ![Tangled wire bundles strung between two buildings, one draped over a pipe, and a clamped service pipe](docs/images/cyberpunk-alley.png) |
+| **Wires plugged into wall faces** | **Clamps riding a pipe** |
+| ![Wires leaving a building wall at right angles, then drooping](docs/images/wall-ports.png) | ![A pipe across an alley held by three ring clamps](docs/images/clamped-pipe.png) |
+
+**Contents:** [Features](#features) · [Install](#install) · [Quick start](#quick-start) · [Using the tool](#using-the-tool) · [How it works](#how-it-works) · [Project layout](#project-layout) · [Testing](#testing) · [Known limits](#known-limits) · [Roadmap](#roadmap) · [Course record](#course-record)
 
 ---
 
-## Try it (current build)
-Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)). Version 0.5.0 adds week 3: **vertex and face anchors** (ports), **end caps**, **UVs that tile along the length**, **clamps along the cable**, **Bake**, and the **drag-and-drop installer** with a shelf icon ([section 15](#15-week-3-ports-surface-bake-install)). Version 0.6.0 adds a **Language** menu: English, 简体中文, 粵語, Español and Français ([section 16](#16-languages)).
+## Features
+- **Real hanging shape.** A custom solver node simulates each cable as a rope: fixed length, gravity, bending stiffness and collision with the objects it is attached to. Sag follows horizontal span, so a vertical run hangs straight and the low point of an uneven span moves toward the lower end.
+- **Live.** Everything is a Maya node network driven by the anchors' matrices and meshes, so moving, rotating or editing an anchor updates the cable, with no scripts running per frame and no constraints to break.
+- **Any anchor.** Objects, locators, groups and joints, or a single **vertex or face**, which acts as a port: the cable plugs in there and leaves along the surface normal, even on a deforming mesh.
+- **Routing.** Start, any number of waypoints and End. Mesh waypoints are **draped over** like a cable resting on a support; locators are passed through.
+- **Wire runs.** One route can carry many wires, side by side like power lines or tangled at random, each with its own slack and thickness (repeatable with a seed).
+- **Presets:** Single Pipe, Utility Line, Cyberpunk Tangle.
+- **Production details:** Sweep Mesh tube with live radius, sides, twist and taper; end caps; UVs that tile along the length at a set rate; clamps or any custom mesh instanced along each wire; **Bake** to plain meshes.
+- **Five languages:** English, 简体中文, 粵語, Español, Français.
+- **Safe to use:** every action is one undo step, errors explain how to fix the problem, and cleanup only ever touches nodes the tool made.
 
-1. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin (set to auto-load) and adds a **Cable Tool** shelf button. (Or, without installing: **Windows › Settings/Preferences › Plug-in Manager › Browse** and pick `CableTool/plug-ins/cableTool.py`.)
-2. Open **Cable Tool › Open Cable Tool** from the main menu bar, the shelf button, or run `cmds.cableTool()`.
-3. Select two or more objects, locators, vertices or faces in order, press **Use Selection Order**, then **Generate Cable**. Move one, or edit the mesh: the cable follows.
+## Install
+Developed and tested in **Maya 2026** on macOS. Earlier versions are untested: Sweep Mesh needs Maya 2022 or later, and the tool also uses newer math nodes such as `multDL`.
 
-Or open the demo — a row of utility poles and a cyberpunk alley; call `demo("peer")` afterwards for the peer run's cone, cube, sphere and cylinder: run `exec(open("tests/demo_scene.py").read())` in the Script Editor (use the full path), or launch Maya with it:
+1. Download or clone this repository and keep the `CableTool` folder somewhere permanent.
+2. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin, sets it to auto-load and adds a **Cable Tool** shelf button.
+
+Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **Windows › Settings/Preferences › Plug-in Manager › Browse**.
+
+## Quick start
+1. Open the tool from the **Cable Tool** menu in Maya's menu bar, the shelf button, or `cmds.cableTool()`.
+2. Select two or more anchors in the order the cable should run (objects, locators, vertices or faces) and press **Use Selection Order**.
+3. Optionally pick a **Preset** and press **Apply**, then press **Generate Cable**.
+4. Move any anchor: the cable follows. The sliders edit the cable live, and every setting is also on the cable's group in the Channel Box.
+
+**Demo scene:** run `exec(open("/path/to/tests/demo_scene.py").read())` in the Script Editor for the utility poles and the cyberpunk alley shown above. Call `demo("peer")` afterwards for the peer-review scene (cone, cube, sphere, cylinder).
+
+## Using the tool
+<img src="docs/images/window-en.png" alt="The Cable Tool window in English" width="300" align="right">
+
+| Area | Controls |
+|---|---|
+| **Menu bar** | Edit (Reset Settings, Load Selected, Delete Selected, Clear All) · **Language** · Help |
+| **Mode** | `Cable / Pipe`; `Fence` and `Road` are listed greyed out until built |
+| **Route** | `Start`, ordered `Waypoints`, `End`, each with `Get Selected`; **Use Selection Order** fills all three from the selection |
+| **Preset** | Single Pipe · Utility Line · Cyberpunk Tangle + `Apply` |
+| **Shape** | Radius · Profile Sides · Length Detail · Twist (degrees) · Taper |
+| **Path** | Sag · Stiffness · Corner Smoothing · Smoothness · Drape Over Mesh Waypoints |
+| **Wires** | Wire Count · Spread · Spread In A Row · Slack Variation · Thickness Variation · Seed |
+| **Ends** | Attach Ends to Surface · Lead-out Length |
+| **Surface** | End Caps · Texture Repeat per Unit |
+| **Hardware** | Clamp Mesh (empty = a plain ring) · Clamp Count · Clamp Size |
+| **Footer** | Generate · Rebuild Current · Bake · Clear All · colour-coded status box |
+
+- **Anchors.** A whole mesh as Start/End attaches to the surface point facing the next anchor. A **vertex or face** is a port: the cable leaves exactly along its normal. Several wires at a port fan out across the surface, so a bundle plugged into a wall spreads over the wall.
+- **Live vs rebuild.** Every setting updates instantly except **Wire Count** and **Clamp Count**, which change how many nodes there are. Those rebuild the cable in place when you release the slider.
+- **Load Selected** reads a cable's settings, route and clamp mesh back into the window, so you can keep editing it later or in another session.
+- **Bake** turns the current cable into plain meshes (wires and clamps) with no history, in `<name>_baked_GRP`. Ctrl+Z brings the live cable back.
+- **Clamp Mesh:** model your clamp at the origin around a tube of radius 1 lying along +X; it is instanced, never copied or deleted.
+- **Language:** switch from the window's **Language** menu. The window rebuilds in place and keeps everything on it. Until you choose, the tool follows Maya's interface language.
+
+<br clear="right">
+
+## How it works
+### Node network (per wire)
 ```
-open -n -a /Applications/Autodesk/maya2026/Maya.app --args -command \
-  "evalDeferred -lowestPriority \"python(\\\"exec(open('$PWD/tests/demo_scene.py').read())\\\")\""
+anchor.worldMatrix ─┐
+anchor mesh.outMesh ┼─▶ cableToolSolver ─▶ nurbsCurve ─▶ sweepMeshCreator ─▶ polyMoveUV ─▶ mesh
+cable group settings┘          │                │
+                               └─▶ outRadius     └─▶ pointOnCurveInfo ─▶ clamp instances
+```
+The cable's group holds every setting as a keyable attribute wired into each wire's solver and Sweep Mesh. A run with several wires has one such network per wire.
+
+### The solver (`cableToolSolver`)
+A Python API 2.0 `MPxNode` registered by the plugin. Every time an input changes it works in two stages:
+
+1. **Rest shape (analytic).**
+   - **Path points:** mesh ends sit on the surface facing the next anchor; ports use the vertex or face and its normal; draped waypoints sit on top of the object, lifted by the tube radius.
+   - **Between points:** a Catmull-Rom spline (blended with straight lines by *Corner Smoothing*) sagging by a catenary weight × *Sag* × the span's horizontal length.
+2. **Relaxation (rope physics).**
+   - **The chain:** the rest shape becomes a particle chain, about one point per tube diameter, with fixed segment lengths.
+   - **Each Verlet step:** applies gravity, then several passes of length constraints, a bending constraint (*Stiffness*) and collision with every mesh the cable is attached to. Path points and a straight *Lead-out Length* off each mesh end are pinned.
+   - **Speed:** the previous result warm-starts the next solve, so dragging is fast.
+
+Tuned on a test cable to keep length within about 1% and bends no tighter than a few tube radii. Measured in Maya 2026 on the peer-review scene: no cable passes through any object, lengths stay within ~1.5%, and the tightest bends are 1.7–4.8 tube radii.
+
+### Other parts
+- **Tube:** Sweep Mesh in *Distance* interpolation, a ring every tube diameter ÷ *Length Detail*, so it is smooth at any scene scale. Twist is shown in degrees and converted to the whole turns Sweep Mesh uses.
+- **UVs:** Sweep Mesh's *Unfold* UVs (V along the cable, U around it, square texels) scaled by the live arc length (`curveInfo`) × *Texture Repeat per Unit*, so a striped texture tiles at the same density on every cable.
+- **Wire runs:** each wire draws from its own random stream (Seed + wire index). In a row, wires stay parallel across *Spread*; in a cluster, each lands at a random spot at every anchor, so they cross.
+- **Clamps:** `pointOnCurveInfo` gives each clamp its position and tangent, two cross products and a `fourByFourMatrix` turn that into a frame along the cable, and the scale follows the wire's radius × *Clamp Size*.
+- **Modes:** `generators.GENERATORS` lists every mode. The dropdown, the settings panels and the Generate button are built from it. A mode declares its settings and builds its own network; the shared base handles the group, stored settings, Load, Rebuild, Bake and Delete.
+- **Scene safety:**
+  - **Undo:** one undo chunk per action, and a whole slider drag is a single Ctrl+Z.
+  - **Errors:** limits the tool enforces become warnings that say how to fix them, and a catch-all keeps unexpected errors out of Maya.
+  - **Input:** every value is sanitised (empty, text, NaN, infinity).
+  - **Cleanup:** every created node is tagged, so Clear All and Delete never touch the artist's own nodes, even ones with similar names.
+- **Languages:** every artist-facing string goes through `tr()` with the English text as its key. `locales/<code>.json` holds each translation, and anything missing falls back to English. Messages are whole sentences with `{0}` placeholders, so each language can order its words naturally.
+  - **Chinese** uses the names from Maya's own Chinese interface.
+  - **Cantonese** is written colloquial Cantonese in Traditional characters.
+  - **Spanish and French** keep Maya's panel names in English, because Maya has no interface in those languages.
+
+## Project layout
+```
+CableTool/                       the Maya module (point Maya here)
+├── CableTool.mod
+├── install.py                   drag-and-drop installer
+├── icons/cableTool.png          menu / shelf icon
+├── plug-ins/cableTool.py        plugin entry point: command, solver node, menu
+└── scripts/cable_tool/          the tool, as a Python package
+    ├── config.py                settings table (defaults, ranges, tips), sanitising
+    ├── solver.py                cableToolSolver: rest shape + rope physics
+    ├── route.py                 anchors: objects, locators, vertices, faces
+    ├── nodes.py                 tagging, cleanup, undo, Sweep Mesh plugin
+    ├── ui.py                    the Qt window
+    ├── menu.py                  the Cable Tool menu in Maya's menu bar
+    ├── i18n.py, locales/        languages
+    ├── dev.py                   reload helper, list of interface strings
+    └── generators/              one generator per mode (registry, base, cable, planned)
+docs/images/                     screenshots for this README
+tests/
+├── test_cable_rig.py            40 headless rig, physics and language tests
+├── test_ui.py                   headless window test
+└── demo_scene.py                utility poles, cyberpunk alley, peer-review scene
 ```
 
-Run the tests headlessly (tested with Maya 2026; replace `maya2026` with `maya2027` for 2027):
+## Testing
+The tests run headlessly with Maya's Python (replace `maya2026` with your version):
 ```
 MAYAPY=/Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy
 $MAYAPY tests/test_cable_rig.py
 QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 ```
-Picking anchors turns on Maya's *track selection order* preference, which waypoint ordering needs.
+They cover:
+- **Physics:** length kept, sag scaling, vertical runs, the low point, draping without cutting through objects, bend limits.
+- **Anchors:** ports on vertices and faces, following moves and mesh edits.
+- **Wires and hardware:** multi-wire spread and seeds, clamps, UVs, end caps, Bake.
+- **Scene safety:** undo, cleanup and the installer.
+- **Languages:** every string translated in every language, with its placeholders.
+- **Window:** a full session in each of the five languages.
+
+## Known limits
+- **Speed with many wires:** dragging a crossarm that carries dozens of wires re-solves all of them, at about 0.16 s per update in the demo.
+- **Sharp edges:** where a cable bends over a sharp edge, the tube can graze it by up to about a fifth of its radius. It never cuts through.
+- **Unloading:** Maya won't unload the plugin while any cable exists (even in the undo queue). Start a new scene first.
+- **Platforms:** tested in Maya 2026 on macOS only.
+
+## Roadmap
+Cables, fences and roads are all curve-driven geometry, so the mode architecture lets one tool build all three:
+
+| Building block | Cable / Pipe | Fence | Road |
+|---|---|---|---|
+| Route, waypoints, live curve | ✅ | planned | planned |
+| Sweep Mesh profile | round tube | thin box rails | flat, wide surface |
+| Hardware along the length | clamps | **fence posts** | lamp posts, markers |
+| Length-wise UVs | ribbed / striped | wood grain | **lane markings** |
+| **Hard part** | contact and attachment | vertical posts on uneven ground, gates | terrain conforming, banking, intersections |
+
+Next: basic Fence, then basic Road; after that terrain conforming, gates and road intersections.
 
 ---
 
-## The Pitch
+## Course record
+The midterm's pitch, plan and peer feedback, kept as submitted.
 
-### 1. The tool in one sentence
-A Maya Python/Qt plugin that procedurally generates customizable pipes and cables that route through picked objects, locators or mesh components, plug into surfaces along their normals, and stay live as anything they're attached to moves.
+<details>
+<summary><b>Pitch</b></summary>
 
-### 2. The chore it ends
-Drawing CV curves, extruding profiles, rigging endpoints, adjusting sag, placing clamps and fixing UVs by hand takes 15–20 minutes per cable. This tool does it in a few clicks.
+**1. The tool in one sentence.** A Maya Python/Qt plugin that procedurally generates customizable pipes and cables that route through picked objects, locators or mesh components, plug into surfaces along their normals, and stay live as anything they're attached to moves.
 
-### 3. The UI
-Loading the plugin adds a **Cable Tool** menu to Maya's main menu bar (`Open Cable Tool`, `Reload`, `About`); the window can also be opened with the `cableTool` command or a shelf button.
+**2. The chore it ends.** Drawing CV curves, extruding profiles, rigging endpoints, adjusting sag, placing clamps and fixing UVs by hand takes 15–20 minutes per cable. This tool does it in a few clicks.
 
-One window, top to bottom:
+**3. The UI.** One window with a pinned footer, collapsible sections, tooltips on every control, sliders with a typed field and a hard safety cap, and a colour-coded status box whose messages say how to fix a problem. See [Using the tool](#using-the-tool).
 
-| Area | Controls |
-|---|---|
-| **Mode** | Dropdown: `Cable / Pipe` (`Fence` and `Road` greyed out until built — see [section 11](#11-future-modes-fences-and-roads)) |
-| **Route** | `Start` / `End` fields and an ordered `Waypoints` list, each with `Get Selected`; accepts transforms, locators, vertices or faces |
-| **Preset** | `Single Pipe`, `Utility Line`, `Cyberpunk Tangle` + `Apply` |
-| **Shape** (live) | Radius & Profile Sides · Length Detail · Twist (degrees) & Taper |
-| **Path** (live) | Sag · Stiffness · Corner Smoothing · Smoothness · Drape Over Mesh Waypoints |
-| **Wires** (live) | Wire Count (rebuilds by itself on release) · Spread · Spread In A Row · Slack Variation · Thickness Variation · Seed |
-| **Ends** (live) | Attach Ends to Surface · Lead-out Length |
-| **Surface** (live) | End Caps · Texture Repeat per Unit |
-| **Hardware** | `Clamp Mesh` picker (empty = a plain ring) · `Clamp Count` (rebuilds on release) · `Clamp Size` (live) |
-| **UVs** | `Texture Repeat per Unit` |
-| **Menu bar** | Edit · **Language** (English / 简体中文 / 粵語 / Español / Français) · Help |
-| **Footer** (pinned) | `Generate Cable` · `Rebuild Current` · `Bake` · `Clear All` · colour-coded status box |
+**4. Why it's advanced.** Sweep Mesh core with editable history; live following with no clusters or constraints to break; waypoint routing; component attachment along normals; hardware instanced along the length; length-wise UVs. Since the pitch it has also gained a custom physics solver node, multi-wire runs and five interface languages.
 
-- Settings scroll in **collapsible sections**; the footer never scrolls out of reach.
-- Status messages are tagged `[OK]` / `[WARNING]` / `[ERROR]` and say how to fix a problem, not just that one exists.
-- Every control has a tooltip; sliders have a comfortable range plus a typed field with a hard safety cap.
-- Edit menu: `Reset Settings`, `Load Selected Cable`, `Delete Selected Cable`.
+**6. MVP.** A plugin that loads from Maya's Plug-in Manager and opens a Qt UI where selecting two objects generates a Sweep Mesh cable whose ends follow those objects live, with working Radius and Sag sliders.
 
-### 4. Why it's advanced
-- **Sweep Mesh core:** built on Maya's Sweep Mesh (`sweep` plugin) instead of extrusion, so radius, profile, twist and taper stay editable with clean history.
-- **Rig-free live following:** curve points are driven by `decomposeMatrix` nodes from the picked objects — no clusters or constraints to break.
-- **Waypoint routing:** cables pass through any number of picks, so they can run along a wall and turn a corner.
-- **Component attachment:** a picked vertex or face makes the cable leave along the surface normal, plugging into a port instead of floating near it.
-- **Hardware along the length:** clamps, brackets or connectors instanced at a set spacing and riding the curve, plus end caps.
-- **Clean length-wise UVs:** scaled by cable length, so tiling textures need no hand fixing.
+**7. The riskiest part.** Getting the cable to leave a picked vertex or face cleanly along its normal and stay attached while the mesh deforms, and keeping sag live alongside waypoints without the curve kinking.
+</details>
 
-### 5. The three weeks
-**By Oct 13 — Plugin shell + Sweep foundation**
-- Module folder laid out (see [section 9](#9-plugin--packaging)); `cableTool.py` plugin loads from the Plug-in Manager, registers the `cableTool` command and adds the **Cable Tool** menu.
-- Qt UI layout built, opened from that menu.
-- `cmds.loadPlugin('sweep')`; a Sweep Mesh along a curve between two selected objects.
-- Radius, profile, twist and taper sliders wired to the sweep attributes.
+<details>
+<summary><b>The three weeks: plan and status</b></summary>
 
-**By Oct 20 — Live rig (core goal)**
-- Curve end points driven by `decomposeMatrix`, so the cable follows its objects.
-- Sag built into the node network so it stays live.
-- Waypoints: extra picks, each driving its own curve point the same way.
+**By Oct 13: plugin shell + Sweep foundation** ✅
+- Module folder, `cableTool.py` plugin with the `cableTool` command and **Cable Tool** menu.
+- Qt UI opened from that menu; Sweep Mesh along a curve between two objects; radius, profile, twist and taper sliders.
 
-**By Oct 26 — Components, hardware, UVs, polish**
-- ✅ Component attachment along normals, staying attached when the mesh moves or deforms.
-- ✅ Hardware instanced along the cable, following the curve live. ✅ End caps.
-- ✅ Length-wise UVs.
-- ✅ Presets, bake, undo, edge-case error handling, UI polish.
-- ✅ **Packaging:** `.mod` file, drag-and-drop installer, shelf icon, clean unload (closes the window, removes the menu, deregisters the command and node); install tested into a scratch modules folder.
+**By Oct 20: live rig (core goal)** ✅
+- Ends follow their objects live; sag stays live; waypoints.
 
-**Stretch (in priority order)**
-1. Multi-wire bundles and noise variation.
-2. Basic Fence mode — posts plus swept rails, on flat ground.
-3. Basic Road mode — flat swept ribbon with lane-marking UVs.
+**By Oct 26: components, hardware, UVs, polish** ✅
+- Component attachment along normals, staying attached when the mesh moves or deforms.
+- Hardware instanced along the cable, following it live; end caps.
+- Length-wise UVs.
+- Presets, bake, undo, edge-case error handling, UI polish.
+- Packaging: `.mod` file, drag-and-drop installer, shelf icon, clean unload.
 
-### 6. The smallest version that still counts (MVP)
-A plugin that loads from Maya's Plug-in Manager and opens a Qt UI where selecting two objects generates a Sweep Mesh cable whose ends follow those objects live via `decomposeMatrix`, with working Radius and Sag sliders.
+**Stretch**
+1. ✅ Multi-wire bundles and variation.
+2. Basic Fence mode: posts plus swept rails, on flat ground.
+3. Basic Road mode: flat swept ribbon with lane-marking UVs.
+</details>
 
-### 7. The riskiest part
-Getting the cable to leave a picked vertex or face cleanly along its normal and stay attached while the mesh deforms, and keeping sag live alongside waypoints without the curve kinking. Sweep Mesh and `decomposeMatrix` remove my original risk (unstable history from extrusion and cluster rigs), so what remains is the component-attachment math.
+<details>
+<summary><b>Lessons from my previous tool</b></summary>
 
----
-
-## Design Notes
-
-### 8. Technical design
-**Code structure**
-- **Shared route core:** start/end/waypoint picking (using `cmds.ls(orderedSelection=True)` so the cable follows click order).
-- **One generator per mode** — `CableGenerator` now, `FenceGenerator` / `RoadGenerator` later — each with `build(route, settings)`, `update(settings)`, `bake()`, `delete()`.
-- **Thin plugin, real code in a package:** the plugin file only registers commands and the menu; all tool logic lives in the `cable_tool` Python package (see [section 9](#9-plugin--packaging)).
-- **One `DEFAULTS` table** feeds both the UI and `Reset Settings`.
-
-**Live network** (see [section 14](#14-physics-solver-and-wire-styles))
-- **Per wire:** anchor `worldMatrix` + mesh `outMesh` → `cableToolSolver` (a custom `MPxNode` in the plugin) → `nurbsCurve` → `sweepMeshCreator` → mesh. Maya re-solves only when an anchor or a setting changes.
-- **Settings live on the cable group:** every setting is a keyable attribute on the group, wired into each wire's solver and Sweep Mesh, so it can also be changed or animated from the Channel Box. Twist is shown in degrees and converted to the whole turns Sweep Mesh expects. Only Wire Count changes the network itself, so the generator rebuilds the run in place when it changes (after a slider drag is released); it is kept out of the Channel Box.
-- **Tube:** Sweep Mesh in *Distance* interpolation with a ring every tube diameter / `Length Detail`, so the tube is smooth along its length at any scene scale.
-
-**Scene safety**
-- **One undo chunk per action** (`try/finally`); live sliders open a chunk on press and close it on release, so a whole drag undoes with one Ctrl+Z.
-- **Two-level error handling:** a custom error for limits I enforce, plus a catch-all at the UI layer, so Maya never sees an unhandled exception.
-- **Input sanitising** of every UI value (empty, text, NaN, infinity) and selection checks that report ignored items and overlapping anchors.
-- **Tagged nodes:** everything the tool creates carries a custom attribute (including which mode built it), so `Clear` deletes by tag, never by name. Each cable stores its settings on its group, enabling `Load Selected Cable`.
-- One shared shader per cable type, and one top-level group for all output.
-
-### 9. Plugin & packaging
-The tool ships as a **Maya module** containing a **Python plugin**, so artists install it once and load it from **Windows › Settings/Preferences › Plug-in Manager** — no Script Editor or command line.
-
-**Folder layout** (✅ = built, ⏳ = week 3)
-```
-CableTool/
-├── CableTool.mod            ✅ tells Maya where the module lives
-├── install.py               ✅ drag-and-drop installer
-├── plug-ins/
-│   └── cableTool.py         ✅ plugin entry point (thin)
-├── scripts/
-│   └── cable_tool/          ✅ the real code, as a Python package
-│       ├── __init__.py
-│       ├── config.py        ✅ DEFAULTS, ranges, sanitising, errors
-│       ├── ui.py            ✅ Qt window
-│       ├── route.py         ✅ shared route core
-│       ├── solver.py        ✅ cableToolSolver node: rest shape + rope physics
-│       ├── nodes.py         ✅ tagging, cleanup, undo, sweep dependency
-│       ├── dev.py           ✅ Reload for development; list of interface strings
-│       ├── i18n.py          ✅ tr(), language choice (remembered in an optionVar)
-│       ├── locales/         ✅ zh.json, yue.json, es.json, fr.json
-│       ├── menu.py          ✅ the Cable Tool menu in Maya's menu bar
-│       └── generators/
-│           ├── __init__.py  ✅ mode registry (dropdown order)
-│           ├── base.py      ✅ shared generator: group, settings, load, rebuild, delete
-│           ├── cable.py     ✅ CableGenerator
-│           └── planned.py   ✅ Fence / Road placeholders
-└── icons/
-    ├── cableTool.png        ✅ menu / shelf icon (drawn with Qt)
-    └── cableTool@2x.png
-tests/
-├── test_cable_rig.py        ✅ headless rig and physics tests (mayapy)
-├── test_ui.py               ✅ headless window smoke test
-└── demo_scene.py            ✅ utility poles, cyberpunk alley, peer-run scene
-```
-
-**Plugin steps**
-1. **Entry point:** `plug-ins/cableTool.py` declares `maya_useNewAPI()` (Python API 2.0) and defines `initializePlugin` / `uninitializePlugin`, setting vendor, version and Maya 2027 as the required API version.
-2. **Command:** register a `cableTool` command (`MPxCommand`) that opens or raises the window, so it works from the menu, a shelf button or a script.
-3. **Menu:** on load, add a **Cable Tool** menu to Maya's main menu bar (`Open Cable Tool`, `Reload`, `About`).
-4. **Dependencies:** on load, call `cmds.loadPlugin('sweep', quiet=True)`; if it fails, the plugin still loads but the window shows a clear `[ERROR]` instead of crashing.
-5. **Clean unload:** `uninitializePlugin` closes the window, removes the menu and deregisters the command and the solver node, so unload → load works without restarting Maya. Maya refuses to unload a plugin while its nodes exist (including in the undo queue), so start a new scene first.
-6. **Module file:** `CableTool.mod` adds `plug-ins/`, `scripts/` and `icons/` to Maya's paths automatically.
-7. **Installer:** dragging `install.py` into the viewport (`onMayaDroppedPythonFile`) writes a `.mod` file pointing at the `CableTool` folder into the user's `modules` folder, loads the plugin, sets it to auto-load and adds a shelf button. Nothing is copied, so keep the folder where it is (or drag the installer in again after moving it).
-8. **Test:** install on a clean Maya prefs folder; check load, unload, reload, and that the tool's nodes still open correctly in a scene saved before reloading.
-
-**Development loop:** a dev-only script unloads the plugin, reloads the `cable_tool` modules and loads it again in a running Maya, so I can iterate without restarting.
-
-### 10. Lessons from my previous tool
 In September I built `CableHoseRigTool.py`, a one-shot generator: it computed every point in Python and built meshes with no history, so any change meant clearing and regenerating. This midterm turns that idea into a **live, node-based** tool.
 
 | Keep | Drop | Fix |
 |---|---|---|
 | Pinned footer, collapsible sections, colour-coded status box | Hand-built coordinate frames (Sweep Mesh orients the tube) | Selection order not guaranteed → `orderedSelection` |
 | Actionable messages, tooltips, safety-capped fields | Extrude / cylinder fallback with history off | Generating twice left empty groups; cleanup by name prefix → tag-based cleanup |
-| Undo chunks, two-level error handling, input sanitising | Collision relaxation and spatial hashing (too slow for a live rig; sunflower packing may return for bundles) | Defaults written twice → one `DEFAULTS` table |
-| Sag scaled by span length; catenary shape | Assignment-only features (Beta mode, Length Stagger, Slack Variation) | Clear was all-or-nothing → per-cable Load / Delete |
+| Undo chunks, two-level error handling, input sanitising | | Defaults written twice → one `DEFAULTS` table |
+| Sag scaled by span length; catenary shape | | Clear was all-or-nothing → per-cable Load / Delete |
 | Multi-pick spans → grown into waypoint routing | | |
-| Command-port remote launcher → dev-only script that reloads the plugin in a running Maya | | |
+</details>
 
-### 11. Future modes: fences and roads
-Cables, fences and roads are all **curve-driven geometry**, so the mode architecture in [section 8](#8-technical-design) lets one tool build all three, reusing most of the cable work:
+<details>
+<summary><b>Peer run: Tong Lin, and what changed</b></summary>
 
-| Building block | Cable / Pipe | Fence | Road |
-|---|---|---|---|
-| Route, waypoints, live curve | ✅ | ✅ | ✅ |
-| Sweep Mesh profile | round tube | thin box rails | flat, wide surface |
-| Hardware every N units | clamps, brackets | **fence posts** | lamp posts, markers |
-| Length-wise UVs | ribbed / striped | wood grain | **lane markings** |
-| Sag | ✅ | wire fences only | ❌ |
-| **Hard part** | component attachment | vertical posts on uneven ground; gaps and gates | terrain conforming, banking, intersections |
-
-**Plan**
-1. **Midterm:** mode architecture and dropdown, with only `Cable / Pipe` working. ✅ Built in 0.3.0: `generators.GENERATORS` lists every mode; the dropdown, its panels and the Generate button are built from it, and Load / Delete Selected find a build's generator from the mode stored on its group. A mode only declares its settings (`sections`) and builds its own node network; a planned mode refuses to build with a clear message.
-2. **Stretch:** basic Fence, then basic Road (see [section 5](#5-the-three-weeks)).
-3. **After the midterm:** terrain conforming, gates, road intersections.
-
----
-
-## Feedback
-
-### 12. Peer run: Tong Lin
 1. **What I did:** I loaded the plug-in in Maya 2026, picked a cone, a cube, a sphere and a cylinder in order as start, waypoints and end, generated a few cables, and then changed the Twist and Smoothness settings and added more waypoints.
 2. **What happened:** The cables were generated and followed the objects, but after changing Twist the tube became kinked and twisted into separate segments instead of a smooth cable, and where the cable meets the start and end objects the tube narrows to a sharp point and the cables cross each other.
 3. **What confused me or broke:** Smoothness didn't update live like the other settings (I had to press Rebuild to see it), and when I added several waypoints the cable bent into sharp, tight corners around them instead of a smooth turn.
 
-### 13. Fixes from the peer run
-| Peer-run problem | Cause | Fix (0.3.0) |
+| Problem | Cause | Fix |
 |---|---|---|
-| Twist kinked the tube into separate segments | Sweep Mesh counts Twist in whole turns, but the tool passed degrees, so 90 became 90 full turns | The slider stays in degrees and a node divides by 360 before Sweep Mesh |
-| The tube narrowed to a point at the start/end objects and the cables crossed | Every cable ended at the object's pivot, inside it, so all cables met at one point (and the over-twisted ends pinched) | Mesh ends sit on the surface point facing the next anchor and leave along its normal (`Attach Ends to Surface`, `Lead-out Length`), and the spline keeps following the normal past the lead-out point instead of folding back toward the next anchor (live check in Maya: tightest bend off the demo cone went from 0.13 to 0.44 units, wider than the tube); twist fix above |
-| Smoothness didn't update live | It changes the curve's point count, so it needed a manual Rebuild | Changing it rebuilds the cable in place, once a slider drag is released |
-| Several waypoints made sharp, tight corners | Straight lines between waypoints, and each span's sag met the next in a V | A Catmull-Rom spline through the waypoints (`Corner Smoothing`) and sag that eases out level at waypoints |
+| Twist kinked the tube into segments | Sweep Mesh counts Twist in whole turns; the tool passed degrees, so 90 became 90 turns | Degrees are converted to turns |
+| The tube narrowed to a point at the end objects, and cables crossed | Every cable ended at the object's pivot, inside it | Ends sit on the surface facing the next anchor and leave outward |
+| Smoothness didn't update live | It changed the curve's point count, which needed a Rebuild | The solver re-samples live |
+| Sharp corners at waypoints | Straight lines between waypoints, and sag meeting in a V | A smooth spline through waypoints, then rope physics |
 
-The live re-test in Maya 2026 found more, all fixed in 0.4.0: the tube was a chain of creased straight pieces (Sweep Mesh's default ring placement), the cable kinked or folded where it left a surface, and cables routed through a mesh waypoint ran through its middle and then cut through its walls. Section 14 describes the fix.
+A later live re-test in Maya found three more problems:
+- **Faceted tubes:** Sweep Mesh's default put cross-section rings only at a few points.
+- **Kinks at the surfaces:** cables kinked or folded where they left a surface.
+- **Cutting through objects:** cables routed through a mesh waypoint ran through its middle, then cut through its walls.
 
-### 14. Physics solver and wire styles
-A node network can follow anchors live, but it can't make a cable *rest on* something. 0.4.0 moves the cable's shape into **`cableToolSolver`**, a Python API 2.0 node registered by the plugin, which works in two stages every time an input changes:
+Those led to the physics solver.
 
-1. **Rest shape (analytic).** Mesh ends sit on the surface point facing the next anchor and leave between the surface normal and that anchor. Mesh waypoints are draped over (the top of the surface, lifted by the tube's radius). Between path points the cable follows a Catmull-Rom spline blended with straight lines (`Corner Smoothing`) and sags by a catenary weight × `Sag` × the span's **horizontal** length, so a vertical run hangs straight.
-2. **Relaxation (rope physics).** The rest shape becomes a particle chain (a point every tube diameter, evenly spaced) whose segment lengths are fixed. Verlet steps add gravity; each step projects the length constraints, a bending constraint (`Stiffness`) that also straightens next to pinned points, and collision with every mesh the cable is attached to. Path points and a straight `Lead-out Length` off each mesh end are pinned. The last result warm-starts the next solve, so dragging needs fewer steps.
+| Before (peer-run scene) | After |
+|---|---|
+| ![Cables before: faceted tubes, kinks at the ends, cables through objects](docs/images/peer-run-before.png) | ![Cables after: smooth tubes draped over the cube and sphere, hanging naturally](docs/images/peer-run-after.png) |
+</details>
 
-Tuned offline on a test cable: damping 0.3, gravity 0.003 segments/step, 8 constraint passes keep a cable within ~1% of its length with its tightest bend at several radii, in ~50 ms from cold.
+<details>
+<summary><b>The window in Chinese</b></summary>
 
-**Several wires per run.** `Wire Count` builds one solver, curve and Sweep Mesh per wire. Each wire draws from its own random stream (`Seed` + wire index, so the same seed always gives the same wires):
-- `Spread In A Row` on — wires sit side by side across `Spread` and stay parallel, like power lines on a crossarm.
-- Off — each wire lands at a random spot within `Spread` at every anchor, so the wires cross and tangle.
-- `Slack Variation` and `Thickness Variation` give each wire its own sag and radius (a single cable is never varied).
-
-**Presets:** `Single Pipe` (one stiff tube), `Utility Line` (4 parallel, nearly taut, limp wires) and `Cyberpunk Tangle` (14 clustered wires, very uneven slack and thickness).
-
-**Measured in Maya 2026** (peer-run scene): no cable passes through any object, lengths stay within ~1.5%, and tightest bends are 1.7–4.8 tube radii. The showcase (44 wires) builds in ~3 s; moving one crossarm re-solves its wires in ~0.16 s.
-
-### 15. Week 3: ports, surface, bake, install
-- **Vertex and face anchors (ports).** Pick `pCube1.vtx[12]` or `pCube1.f[3]` like any other anchor, including in **Use Selection Order** (edges and UVs are ignored with a warning). The solver reads the vertex position or face center and its normal from the mesh as it is now, so the cable stays plugged in when the object moves, rotates or is edited. A port end leaves straight along the normal for `Lead-out Length`; a port waypoint is passed just off the surface. Several wires at a port fan out *across the surface* instead of across the direction of travel, so a bundle plugged into a wall spreads over the wall. The group stores each anchor's component next to its object, so Load and Rebuild bring ports back.
-- **End caps:** Sweep Mesh's caps, on by default (`End Caps`).
-- **UVs along the length:** Sweep Mesh's *Unfold* UVs run V 0→1 along the cable and U around it with square texels. A `curveInfo` arc length × `Texture Repeat per Unit` drives a `polyMoveUV` scale, so a striped texture tiles at the same density on every cable and stays correct as the cable stretches.
-- **Bake** freezes the current build into plain meshes in `<name>_baked_GRP` (no history, untagged so Clear All leaves them alone) and removes the live rig; Ctrl+Z brings it back.
-- **Installer and icon:** see [section 9](#9-plugin--packaging).
-- **Demo:** the cyberpunk alley's bundles now plug into wall faces.
-- **Clamps:** `Clamp Count` clamps per wire, evenly spaced by length. Each is an *instance* of the `Clamp Mesh` (any mesh, modelled at the origin around a tube of radius 1 lying along +X) or, if none is picked, of a plain ring made for the run. A `pointOnCurveInfo` (by percentage) gives each clamp its position and tangent; two cross products and a `fourByFourMatrix` turn the tangent into a frame (X along the cable), so clamps ride the wire live; scale = the wire's radius × `Clamp Size`. The picked mesh is stored on the group (generators can declare such node inputs as `extras`), so Rebuild keeps it, and the artist's mesh is never deleted. Bake includes the clamps. The demo alley has a clamped service pipe.
-
-### 16. Languages
-The window, the Cable Tool menu in Maya's menu bar, every setting's label and tooltip, the presets, the status messages and the error messages come in **English, Simplified Chinese (简体中文), Cantonese (粵語), Spanish (Español) and French (Français)**. Switch with the window's **Language** menu (each language is listed in its own language). The window rebuilds itself in place, keeping the route, mode, settings and the cable being edited. The choice is remembered (a Maya optionVar); until you pick one, the tool follows Maya's interface language (`zh_CN` → 简体中文, `zh_HK` → 粵語, Spanish or French Maya → that language, anything else → English).
-
-- **How:** every artist-facing string goes through `tr()` with the English text as its key; `locales/<code>.json` maps English to each language, and anything missing falls back to English. Messages are whole sentences with `{0}` placeholders, never glued from pieces, so each language can order its words naturally.
-- **Terms:** Chinese uses the names in Maya's own Chinese interface (通道盒, 脚本编辑器, 插件管理器, 扫描网格, 定位器). Cantonese is written colloquial Cantonese in Traditional characters (揀, 喺, 嘅, 唔, 咗). Spanish and French keep Maya's panel names in English (Channel Box, Script Editor, Plug-in Manager, Sweep Mesh), since Maya has no Spanish or French interface.
-- **Checked by tests:** `every_language_covers_every_string` collects every interface string (`cable_tool.dev.interface_strings()`) and fails if any language misses one, has a leftover, or drops a `{0}` placeholder or HTML tag; the window test switches through all five languages and rebuilds a cable in each.
+<img src="docs/images/window-zh.png" alt="The Cable Tool window in Simplified Chinese" width="300">
+</details>
