@@ -10,6 +10,7 @@ builds its own node network in _build_network().
 import maya.cmds as cmds
 
 from cable_tool import nodes, route as route_mod
+from cable_tool.i18n import tr
 from cable_tool.config import (DEFAULTS, MODE_ATTR, CableToolError,
                                sanitize_settings)
 
@@ -96,9 +97,9 @@ class BaseGenerator(object):
                 self.group, COMPONENTS_ATTR, index)) or ""
             anchors.append(source[0] + ("." + part if part else ""))
         if len(anchors) < 2:
-            raise CableToolError("This {0} has lost its anchors (were they "
-                                 "deleted?). Pick new ones and Rebuild."
-                                 .format(self.noun))
+            raise CableToolError(tr("This {0} has lost its anchors (were "
+                                    "they deleted?). Pick new ones and "
+                                    "Rebuild.").format(tr(self.noun)))
         return route_mod.Route(anchors[0], anchors[-1], anchors[1:-1])
 
     # -- interface --------------------------------------------------------
@@ -117,8 +118,9 @@ class BaseGenerator(object):
     def build(self, route, settings, name=None, extras=None):
         """Create the live setup for a route. Returns the group node."""
         if not self.available:
-            raise CableToolError("{0} mode isn't built yet; switch the Mode "
-                                 "dropdown to Cable / Pipe.".format(self.label))
+            raise CableToolError(tr("{0} mode isn't built yet; switch the "
+                                    "Mode dropdown to Cable / Pipe.").format(
+                                        tr(self.label)))
         self._check_dependencies()
         anchors = route.validate()
         settings = self.sanitize(settings)
@@ -174,7 +176,7 @@ class BaseGenerator(object):
             if geo.endswith("_geo") or "_clamp" in geo.split("|")[-1]
             and not geo.endswith("_clampRing")]
         if not meshes:
-            raise CableToolError("{0} has no geometry to bake.".format(
+            raise CableToolError(tr("{0} has no geometry to bake.").format(
                 route_mod.short_name(self.group)))
         name = self.name
         with nodes.undo_chunk("CableTool_Bake"):
@@ -242,8 +244,8 @@ class BaseGenerator(object):
             node = extras.get(key)
             if node:
                 if not cmds.objExists(node):
-                    raise CableToolError(
-                        "'{0}' is not in the scene; pick it again.".format(
+                    raise CableToolError(tr(
+                        "'{0}' is not in the scene; pick it again.").format(
                             node))
                 cmds.connectAttr(node + ".message",
                                  self.group + "." + key)
@@ -271,4 +273,5 @@ class PlannedGenerator(BaseGenerator):
     available = False
 
     def _build_network(self, name, anchors, settings):
-        raise CableToolError("{0} mode isn't built yet.".format(self.label))
+        raise CableToolError(tr("{0} mode isn't built yet.").format(
+            tr(self.label)))

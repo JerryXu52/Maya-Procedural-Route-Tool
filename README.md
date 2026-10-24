@@ -8,12 +8,12 @@ A Maya 2027 Python/Qt plugin that builds live geometry along a route of picked o
 - [Try it (current build)](#try-it-current-build)
 - **The Pitch:** [1. One sentence](#1-the-tool-in-one-sentence) · [2. The chore](#2-the-chore-it-ends) · [3. The UI](#3-the-ui) · [4. Why it's advanced](#4-why-its-advanced) · [5. The three weeks](#5-the-three-weeks) · [6. MVP](#6-the-smallest-version-that-still-counts-mvp) · [7. Riskiest part](#7-the-riskiest-part)
 - **Design Notes:** [8. Technical design](#8-technical-design) · [9. Plugin & packaging](#9-plugin--packaging) · [10. Lessons from my previous tool](#10-lessons-from-my-previous-tool) · [11. Future modes](#11-future-modes-fences-and-roads)
-- **Feedback:** [12. Peer run: Tong Lin](#12-peer-run-tong-lin) · [13. Fixes from the peer run](#13-fixes-from-the-peer-run) · [14. Physics solver and wire styles](#14-physics-solver-and-wire-styles) · [15. Week 3](#15-week-3-ports-surface-bake-install)
+- **Feedback:** [12. Peer run: Tong Lin](#12-peer-run-tong-lin) · [13. Fixes from the peer run](#13-fixes-from-the-peer-run) · [14. Physics solver and wire styles](#14-physics-solver-and-wire-styles) · [15. Week 3](#15-week-3-ports-surface-bake-install) · [16. Languages](#16-languages)
 
 ---
 
 ## Try it (current build)
-Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)). Version 0.5.0 adds week 3: **vertex and face anchors** (ports), **end caps**, **UVs that tile along the length**, **clamps along the cable**, **Bake**, and the **drag-and-drop installer** with a shelf icon ([section 15](#15-week-3-ports-surface-bake-install)).
+Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)). Version 0.5.0 adds week 3: **vertex and face anchors** (ports), **end caps**, **UVs that tile along the length**, **clamps along the cable**, **Bake**, and the **drag-and-drop installer** with a shelf icon ([section 15](#15-week-3-ports-surface-bake-install)). Version 0.6.0 adds a **Language** menu: English, 简体中文, 粵語, Español and Français ([section 16](#16-languages)).
 
 1. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin (set to auto-load) and adds a **Cable Tool** shelf button. (Or, without installing: **Windows › Settings/Preferences › Plug-in Manager › Browse** and pick `CableTool/plug-ins/cableTool.py`.)
 2. Open **Cable Tool › Open Cable Tool** from the main menu bar, the shelf button, or run `cmds.cableTool()`.
@@ -60,6 +60,7 @@ One window, top to bottom:
 | **Surface** (live) | End Caps · Texture Repeat per Unit |
 | **Hardware** | `Clamp Mesh` picker (empty = a plain ring) · `Clamp Count` (rebuilds on release) · `Clamp Size` (live) |
 | **UVs** | `Texture Repeat per Unit` |
+| **Menu bar** | Edit · **Language** (English / 简体中文 / 粵語 / Español / Français) · Help |
 | **Footer** (pinned) | `Generate Cable` · `Rebuild Current` · `Bake` · `Clear All` · colour-coded status box |
 
 - Settings scroll in **collapsible sections**; the footer never scrolls out of reach.
@@ -146,7 +147,10 @@ CableTool/
 │       ├── route.py         ✅ shared route core
 │       ├── solver.py        ✅ cableToolSolver node: rest shape + rope physics
 │       ├── nodes.py         ✅ tagging, cleanup, undo, sweep dependency
-│       ├── dev.py           ✅ Reload for development
+│       ├── dev.py           ✅ Reload for development; list of interface strings
+│       ├── i18n.py          ✅ tr(), language choice (remembered in an optionVar)
+│       ├── locales/         ✅ zh.json, yue.json, es.json, fr.json
+│       ├── menu.py          ✅ the Cable Tool menu in Maya's menu bar
 │       └── generators/
 │           ├── __init__.py  ✅ mode registry (dropdown order)
 │           ├── base.py      ✅ shared generator: group, settings, load, rebuild, delete
@@ -246,3 +250,10 @@ Tuned offline on a test cable: damping 0.3, gravity 0.003 segments/step, 8 const
 - **Installer and icon:** see [section 9](#9-plugin--packaging).
 - **Demo:** the cyberpunk alley's bundles now plug into wall faces.
 - **Clamps:** `Clamp Count` clamps per wire, evenly spaced by length. Each is an *instance* of the `Clamp Mesh` (any mesh, modelled at the origin around a tube of radius 1 lying along +X) or, if none is picked, of a plain ring made for the run. A `pointOnCurveInfo` (by percentage) gives each clamp its position and tangent; two cross products and a `fourByFourMatrix` turn the tangent into a frame (X along the cable), so clamps ride the wire live; scale = the wire's radius × `Clamp Size`. The picked mesh is stored on the group (generators can declare such node inputs as `extras`), so Rebuild keeps it, and the artist's mesh is never deleted. Bake includes the clamps. The demo alley has a clamped service pipe.
+
+### 16. Languages
+The window, the Cable Tool menu in Maya's menu bar, every setting's label and tooltip, the presets, the status messages and the error messages come in **English, Simplified Chinese (简体中文), Cantonese (粵語), Spanish (Español) and French (Français)**. Switch with the window's **Language** menu (each language is listed in its own language). The window rebuilds itself in place, keeping the route, mode, settings and the cable being edited. The choice is remembered (a Maya optionVar); until you pick one, the tool follows Maya's interface language (`zh_CN` → 简体中文, `zh_HK` → 粵語, Spanish or French Maya → that language, anything else → English).
+
+- **How:** every artist-facing string goes through `tr()` with the English text as its key; `locales/<code>.json` maps English to each language, and anything missing falls back to English. Messages are whole sentences with `{0}` placeholders, never glued from pieces, so each language can order its words naturally.
+- **Terms:** Chinese uses the names in Maya's own Chinese interface (通道盒, 脚本编辑器, 插件管理器, 扫描网格, 定位器). Cantonese is written colloquial Cantonese in Traditional characters (揀, 喺, 嘅, 唔, 咗). Spanish and French keep Maya's panel names in English (Channel Box, Script Editor, Plug-in Manager, Sweep Mesh), since Maya has no Spanish or French interface.
+- **Checked by tests:** `every_language_covers_every_string` collects every interface string (`cable_tool.dev.interface_strings()`) and fails if any language misses one, has a leftover, or drops a `{0}` placeholder or HTML tag; the window test switches through all five languages and rebuilds a cable in each.

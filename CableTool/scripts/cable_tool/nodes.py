@@ -7,6 +7,7 @@ import maya.cmds as cmds
 
 from cable_tool.config import (TAG_ATTR, MODE_ATTR, ROOT_GROUP,
                                CableToolError)
+from cable_tool.i18n import tr
 
 
 @contextlib.contextmanager
@@ -27,10 +28,10 @@ def ensure_sweep_plugin():
     try:
         cmds.loadPlugin("sweep", quiet=True)
     except RuntimeError:
-        raise CableToolError(
+        raise CableToolError(tr(
             "Could not load Maya's 'sweep' plugin, which Sweep Mesh needs. "
             "Enable sweep in Windows > Settings/Preferences > Plug-in "
-            "Manager and try again.")
+            "Manager and try again."))
 
 
 def tag(node, cable_id):

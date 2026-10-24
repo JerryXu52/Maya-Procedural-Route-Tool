@@ -12,6 +12,7 @@ import re
 import maya.cmds as cmds
 
 from cable_tool.config import CableToolError, EPSILON
+from cable_tool.i18n import tr
 
 # Component kinds the tool can anchor to, and the code the solver uses.
 COMPONENT_KINDS = {"vtx": 1, "f": 2}
@@ -34,15 +35,16 @@ class Route(object):
         """Raise CableToolError with a fix-it message if the route can't be
         built. Returns the anchors as long names."""
         if not self.start or not self.end:
-            raise CableToolError("Set both a Start and an End anchor "
-                                 "(select an object, then Get Selected).")
+            raise CableToolError(tr("Set both a Start and an End anchor "
+                                    "(select an object, then Get "
+                                    "Selected)."))
 
         resolved = [_resolve(anchor) for anchor in self.anchors]
         for a, b in zip(resolved, resolved[1:]):
             if a == b:
-                raise CableToolError(
+                raise CableToolError(tr(
                     "'{0}' is used twice in a row; a span needs two "
-                    "different anchors.".format(short_name(a)))
+                    "different anchors.").format(short_name(a)))
         return resolved
 
     def overlapping_spans(self):
@@ -58,29 +60,30 @@ def _resolve(anchor):
     node, kind, index = split(anchor)
     matches = cmds.ls(node, long=True, type="transform")
     if not matches:
-        raise CableToolError(
+        raise CableToolError(tr(
             "'{0}' is not an object or locator in the scene. Pick it again "
-            "with Get Selected.".format(anchor))
+            "with Get Selected.").format(anchor))
     if len(matches) > 1:
-        raise CableToolError(
+        raise CableToolError(tr(
             "'{0}' matches more than one object; rename one so the name is "
-            "unique.".format(node))
+            "unique.").format(node))
     if kind is None:
         return matches[0]
     mesh = mesh_shape(matches[0])
     if mesh is None:
-        raise CableToolError(
-            "'{0}' is a {1} anchor, but '{2}' has no mesh.".format(
-                anchor, "vertex" if kind == "vtx" else "face",
-                short_name(matches[0])))
+        raise CableToolError((
+            tr("'{0}' is a vertex anchor, but '{1}' has no mesh.")
+            if kind == "vtx" else
+            tr("'{0}' is a face anchor, but '{1}' has no mesh.")).format(
+                anchor, short_name(matches[0])))
     count = (cmds.polyEvaluate(mesh, vertex=True) if kind == "vtx"
              else cmds.polyEvaluate(mesh, face=True))
     if index >= count:
-        raise CableToolError(
-            "'{0}' doesn't exist: the mesh only has {1} {2}. Pick it again "
-            "with Get Selected.".format(anchor, count,
-                                        "vertices" if kind == "vtx"
-                                        else "faces"))
+        raise CableToolError((
+            tr("'{0}' doesn't exist: the mesh only has {1} vertices. Pick "
+               "it again with Get Selected.") if kind == "vtx" else
+            tr("'{0}' doesn't exist: the mesh only has {1} faces. Pick it "
+               "again with Get Selected.")).format(anchor, count))
     return "{0}.{1}[{2}]".format(matches[0], kind, index)
 
 

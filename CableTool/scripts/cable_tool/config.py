@@ -8,7 +8,7 @@ never disagree.
 import math
 
 TOOL_NAME = "Cable Tool"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 # Attribute added to every node the tool creates. Its value is the UUID
 # of the cable's group, so cleanup finds nodes by tag, never by name.

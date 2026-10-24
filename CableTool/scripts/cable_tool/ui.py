@@ -26,8 +26,9 @@ except ImportError:  # Maya 2024 and earlier
     from PySide2 import QtCore, QtGui, QtWidgets
     from shiboken2 import wrapInstance
 
-from cable_tool import generators, nodes, route as route_mod
+from cable_tool import generators, i18n, nodes, route as route_mod
 from cable_tool.config import DEFAULTS, TOOL_NAME, VERSION, CableToolError
+from cable_tool.i18n import N_, tr
 
 WINDOW_OBJECT = "CableToolWindow"
 LOG_PREFIX = "[CableTool] "
@@ -35,7 +36,7 @@ LOG_PREFIX = "[CableTool] "
 STATUS_COLOURS = {"info": "#3a3a3a", "ok": "#2a4d31",
                   "warning": "#5c4a1c", "error": "#5c2b29"}
 STATUS_TAGS = {"info": "[INFO]", "ok": "[OK]", "warning": "[WARNING]",
-               "error": "[ERROR]"}
+               "error": "[ERROR]"}  # through tr() when shown
 
 _window = None
 
@@ -65,21 +66,39 @@ def show():
 
 def close():
     global _window
-    if _window is not None:
+    # Take the reference first: closing runs closeEvent, which clears the
+    # global itself.
+    window, _window = _window, None
+    if window is not None:
         try:
-            _window.close()
-            _window.deleteLater()
-        except RuntimeError:
+            window.close()
+            window.deleteLater()
+        except RuntimeError:  # the C++ widget was already deleted
             pass
-    _window = None
 
 
 def about():
     QtWidgets.QMessageBox.about(
-        maya_main_window(), TOOL_NAME,
-        "<b>{0}</b> {1}<br><br>Live procedural pipes and cables built on "
-        "Sweep Mesh.<br>Open it from the Cable Tool menu or run "
-        "<code>cmds.cableTool()</code>.".format(TOOL_NAME, VERSION))
+        maya_main_window(), tr(TOOL_NAME),
+        tr("<b>{0}</b> {1}<br><br>Live procedural pipes and cables built on "
+           "Sweep Mesh.<br>Open it from the Cable Tool menu or run "
+           "<code>cmds.cableTool()</code>.").format(tr(TOOL_NAME), VERSION))
+
+
+def switch_language(code):
+    """Change the interface language and rebuild the window in it, keeping
+    what's on screen: route, mode, settings and the build being edited."""
+    global _window
+    state = _window.save_state() if _window is not None else None
+    i18n.set_language(code)
+    from cable_tool import menu
+    menu.build()  # the Cable Tool menu in Maya's menu bar
+    if state is None:
+        return None
+    close()
+    window = show()
+    window.restore_state(state)
+    return window
 
 
 # -------------------------------------------------------------------------
@@ -133,7 +152,7 @@ class SliderField(QtWidgets.QWidget):
         self.is_int = spec["type"] == "int"
         self.soft_low, self.soft_high = spec["slider"]
 
-        label = QtWidgets.QLabel(spec["label"])
+        label = QtWidgets.QLabel(tr(spec["label"]))
         label.setMinimumWidth(90)
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         if self.is_int:
@@ -149,7 +168,7 @@ class SliderField(QtWidgets.QWidget):
         self.field.setMinimumWidth(72)
 
         for widget in (label, self.slider, self.field):
-            widget.setToolTip(spec["tip"])
+            widget.setToolTip(tr(spec["tip"]))
 
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -214,8 +233,8 @@ class CheckField(QtWidgets.QWidget):
         super(CheckField, self).__init__(parent)
         spec = DEFAULTS[key]
         self.key = key
-        self.box = QtWidgets.QCheckBox(spec["label"])
-        self.box.setToolTip(spec["tip"])
+        self.box = QtWidgets.QCheckBox(tr(spec["label"]))
+        self.box.setToolTip(tr(spec["tip"]))
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.box)
@@ -243,15 +262,15 @@ class AnchorField(QtWidgets.QWidget):
 
     def __init__(self, label, tip, on_pick, parent=None):
         super(AnchorField, self).__init__(parent)
-        title = QtWidgets.QLabel(label)
+        title = QtWidgets.QLabel(tr(label))
         title.setMinimumWidth(90)
         self.edit = QtWidgets.QLineEdit()
-        self.edit.setPlaceholderText("nothing picked")
-        self.edit.setToolTip(tip)
-        button = QtWidgets.QPushButton("Get Selected")
-        button.setToolTip("Use the first selected object, locator, vertex "
-                          "or face. A vertex or face is a port: the cable "
-                          "leaves along its normal.")
+        self.edit.setPlaceholderText(tr("nothing picked"))
+        self.edit.setToolTip(tr(tip))
+        button = QtWidgets.QPushButton(tr("Get Selected"))
+        button.setToolTip(tr("Use the first selected object, locator, vertex "
+                             "or face. A vertex or face is a port: the cable "
+                             "leaves along its normal."))
         button.clicked.connect(lambda: on_pick(self))
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -279,9 +298,9 @@ def guarded(method):
             self.set_status(str(err), "warning")
         except Exception as err:
             print(LOG_PREFIX + traceback.format_exc())
-            self.set_status("Unexpected error handled: {0}: {1} (details in "
-                            "the Script Editor).".format(type(err).__name__,
-                                                         err), "error")
+            self.set_status(tr("Unexpected error handled: {0}: {1} (details "
+                               "in the Script Editor).").format(
+                                   type(err).__name__, err), "error")
     wrapper.__name__ = method.__name__
     return wrapper
 
@@ -292,7 +311,7 @@ class CableToolWindow(QtWidgets.QWidget):
         super(CableToolWindow, self).__init__(parent)
         self.setObjectName(WINDOW_OBJECT)
         self.setWindowFlags(QtCore.Qt.WindowType.Window)
-        self.setWindowTitle("{0} {1}".format(TOOL_NAME, VERSION))
+        self.setWindowTitle("{0} {1}".format(tr(TOOL_NAME), VERSION))
         self.resize(460, 640)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
 
@@ -325,75 +344,97 @@ class CableToolWindow(QtWidgets.QWidget):
         root.addWidget(self._build_footer())
         self.mode_box.currentIndexChanged.connect(self.on_mode_changed)
         self.on_mode_changed(self.mode_box.currentIndex())
-        self.set_status("Ready. Pick a Start and End (or select them in "
-                        "order and press Use Selection Order), then "
-                        "Generate.")
+        self.set_status(tr("Ready. Pick a Start and End (or select them in "
+                           "order and press Use Selection Order), then "
+                           "Generate."))
 
     # -- construction -----------------------------------------------------
     def _build_menu(self):
         bar = QtWidgets.QMenuBar(self)
-        edit = bar.addMenu("Edit")
-        edit.addAction("Reset Settings", self.on_reset)
+        edit = bar.addMenu(tr("Edit"))
+        edit.addAction(tr("Reset Settings"), self.on_reset)
         edit.addSeparator()
-        edit.addAction("Load Selected", self.on_load_selected)
-        edit.addAction("Delete Selected", self.on_delete_selected)
-        edit.addAction("Clear All", self.on_clear_all)
-        help_menu = bar.addMenu("Help")
-        help_menu.addAction("About", about)
+        edit.addAction(tr("Load Selected"), self.on_load_selected)
+        edit.addAction(tr("Delete Selected"), self.on_delete_selected)
+        edit.addAction(tr("Clear All"), self.on_clear_all)
+        # Language names are shown in their own language, so anyone can
+        # find theirs whatever the interface is in now.
+        language = bar.addMenu(tr("Language"))
+        # QActionGroup moved from QtWidgets (Qt 5) to QtGui (Qt 6).
+        group = (getattr(QtGui, "QActionGroup", None)
+                 or QtWidgets.QActionGroup)(self)
+        self.language_actions = {}
+        for code, name in i18n.LANGUAGES:
+            action = language.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(code == i18n.current())
+            action.triggered.connect(
+                lambda _checked=False, c=code: self.on_language(c))
+            group.addAction(action)
+            self.language_actions[code] = action
+        help_menu = bar.addMenu(tr("Help"))
+        help_menu.addAction(tr("About"), about)
         return bar
 
     def _build_mode_row(self):
         row = QtWidgets.QHBoxLayout()
-        row.addWidget(QtWidgets.QLabel("Mode"))
+        row.addWidget(QtWidgets.QLabel(tr("Mode")))
         self.mode_box = QtWidgets.QComboBox()
         for generator in generators.GENERATORS:
-            label = generator.label
+            label = tr(generator.label)
             if not generator.available:
-                label += " (coming later)"
+                label = tr("{0} (coming later)").format(label)
             self.mode_box.addItem(label, generator.mode)
             item = self.mode_box.model().item(self.mode_box.count() - 1)
             item.setEnabled(generator.available)
-            item.setToolTip(generator.summary)
-        self.mode_box.setToolTip("What to build along the route. Greyed-out "
-                                 "modes are planned and not built yet.")
+            item.setToolTip(tr(generator.summary))
+        self.mode_box.setToolTip(tr("What to build along the route. "
+                                    "Greyed-out modes are planned and not "
+                                    "built yet."))
         row.addWidget(self.mode_box, 1)
         return row
 
     def _build_route_section(self):
-        section = CollapsibleSection("Route")
+        section = CollapsibleSection(tr("Route"))
         layout = section.body_layout
 
-        self.start_field = AnchorField("Start", "Where the cable begins.",
+        self.start_field = AnchorField(N_("Start"),
+                                       N_("Where the cable begins."),
                                        self.on_pick_anchor)
-        self.end_field = AnchorField("End", "Where the cable ends.",
+        self.end_field = AnchorField(N_("End"), N_("Where the cable ends."),
                                      self.on_pick_anchor)
         layout.addWidget(self.start_field)
 
-        layout.addWidget(QtWidgets.QLabel("Waypoints (in order)"))
+        layout.addWidget(QtWidgets.QLabel(tr("Waypoints (in order)")))
         self.waypoint_list = QtWidgets.QListWidget()
         self.waypoint_list.setMaximumHeight(90)
-        self.waypoint_list.setToolTip("Objects or locators the cable passes "
-                                      "through between Start and End.")
+        self.waypoint_list.setToolTip(tr("Objects, locators, vertices or "
+                                         "faces the cable passes between "
+                                         "Start and End."))
         layout.addWidget(self.waypoint_list)
 
         buttons = QtWidgets.QHBoxLayout()
         for label, handler, tip in (
-                ("Add Selected", self.on_add_waypoints,
-                 "Append the selected objects, in the order you clicked."),
-                ("Remove", self.on_remove_waypoint, "Remove the highlighted "
-                                                    "waypoint."),
-                ("Up", lambda: self.on_move_waypoint(-1), "Move earlier."),
-                ("Down", lambda: self.on_move_waypoint(1), "Move later.")):
-            button = QtWidgets.QPushButton(label)
-            button.setToolTip(tip)
+                (N_("Add Selected"), self.on_add_waypoints,
+                 N_("Append the selected objects, in the order you "
+                    "clicked.")),
+                (N_("Remove"), self.on_remove_waypoint,
+                 N_("Remove the highlighted waypoint.")),
+                (N_("Up"), lambda: self.on_move_waypoint(-1),
+                 N_("Move earlier.")),
+                (N_("Down"), lambda: self.on_move_waypoint(1),
+                 N_("Move later."))):
+            button = QtWidgets.QPushButton(tr(label))
+            button.setToolTip(tr(tip))
             button.clicked.connect(handler)
             buttons.addWidget(button)
         layout.addLayout(buttons)
         layout.addWidget(self.end_field)
 
-        fill = QtWidgets.QPushButton("Use Selection Order")
-        fill.setToolTip("Select anchors in order: the first becomes Start, "
-                        "the last becomes End, the rest are waypoints.")
+        fill = QtWidgets.QPushButton(tr("Use Selection Order"))
+        fill.setToolTip(tr("Select anchors in order: the first becomes "
+                           "Start, the last becomes End, the rest are "
+                           "waypoints."))
         fill.clicked.connect(self.on_use_selection_order)
         layout.addWidget(fill)
         return section
@@ -405,9 +446,9 @@ class CableToolWindow(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
         if not generator.available:
-            note = QtWidgets.QLabel("<b>{0}</b> is not built yet.<br>{1}"
-                                    .format(generator.label,
-                                            generator.summary))
+            note = QtWidgets.QLabel(tr("<b>{0}</b> is not built yet.<br>{1}")
+                                    .format(tr(generator.label),
+                                            tr(generator.summary)))
             note.setWordWrap(True)
             layout.addWidget(note)
             return panel
@@ -417,7 +458,7 @@ class CableToolWindow(QtWidgets.QWidget):
         fields = self.fields[generator.mode] = {}
         pickers = self.extra_fields.setdefault(generator.mode, {})
         for title, keys in generator.sections:
-            section = CollapsibleSection(title)
+            section = CollapsibleSection(tr(title))
             if title == "Hardware":
                 for key, label, tip in generator.extras:
                     pickers[key] = AnchorField(label, tip,
@@ -436,16 +477,17 @@ class CableToolWindow(QtWidgets.QWidget):
 
     def _build_preset_row(self, generator):
         row = QtWidgets.QHBoxLayout()
-        row.addWidget(QtWidgets.QLabel("Preset"))
+        row.addWidget(QtWidgets.QLabel(tr("Preset")))
         box = QtWidgets.QComboBox()
         for name, _values in generator.presets:
-            box.addItem(name)
-        box.setToolTip("A starting point for the settings below.")
-        apply_button = QtWidgets.QPushButton("Apply")
-        apply_button.setToolTip("Set every setting below from the preset, "
-                                "and apply it to the current build.")
+            box.addItem(tr(name), name)  # shown translated, kept in English
+        box.setToolTip(tr("A starting point for the settings below."))
+        apply_button = QtWidgets.QPushButton(tr("Apply"))
+        apply_button.setToolTip(tr("Set every setting below from the "
+                                   "preset, and apply it to the current "
+                                   "build."))
         apply_button.clicked.connect(
-            lambda: self.on_apply_preset(box.currentText()))
+            lambda: self.on_apply_preset(box.currentData()))
         row.addWidget(box, 1)
         row.addWidget(apply_button)
         self.preset_boxes = getattr(self, "preset_boxes", {})
@@ -461,25 +503,26 @@ class CableToolWindow(QtWidgets.QWidget):
         layout.addWidget(self.current_label)
 
         row = QtWidgets.QHBoxLayout()
-        self.generate_button = generate = QtWidgets.QPushButton("Generate")
+        self.generate_button = generate = QtWidgets.QPushButton(
+            tr("Generate"))
         generate.setMinimumHeight(34)
         generate.setStyleSheet("background-color: #4d8a5c; color: white;")
         generate.clicked.connect(self.on_generate)
-        self.rebuild_button = QtWidgets.QPushButton("Rebuild Current")
+        self.rebuild_button = QtWidgets.QPushButton(tr("Rebuild Current"))
         self.rebuild_button.setMinimumHeight(34)
-        self.rebuild_button.setToolTip("Rebuild the current build along the "
-                                       "route shown above.")
+        self.rebuild_button.setToolTip(tr("Rebuild the current build along "
+                                          "the route shown above."))
         self.rebuild_button.clicked.connect(self.on_rebuild)
-        self.bake_button = QtWidgets.QPushButton("Bake")
+        self.bake_button = QtWidgets.QPushButton(tr("Bake"))
         self.bake_button.setMinimumHeight(34)
-        self.bake_button.setToolTip("Freeze the current build into plain "
-                                    "meshes with no history, and remove the "
-                                    "live rig. Ctrl+Z undoes it.")
+        self.bake_button.setToolTip(tr("Freeze the current build into plain "
+                                       "meshes with no history, and remove "
+                                       "the live rig. Ctrl+Z undoes it."))
         self.bake_button.clicked.connect(self.on_bake)
-        clear = QtWidgets.QPushButton("Clear All")
+        clear = QtWidgets.QPushButton(tr("Clear All"))
         clear.setMinimumHeight(34)
         clear.setStyleSheet("background-color: #944d4d; color: white;")
-        clear.setToolTip("Delete every node this tool created.")
+        clear.setToolTip(tr("Delete every node this tool created."))
         clear.clicked.connect(self.on_clear_all)
         row.addWidget(generate, 3)
         row.addWidget(self.rebuild_button, 2)
@@ -490,14 +533,14 @@ class CableToolWindow(QtWidgets.QWidget):
         self.status = QtWidgets.QPlainTextEdit()
         self.status.setReadOnly(True)
         self.status.setFixedHeight(64)
-        self.status.setToolTip("Result of the last action.")
+        self.status.setToolTip(tr("Result of the last action."))
         layout.addWidget(self.status)
         self._refresh_current()
         return footer
 
     # -- helpers ----------------------------------------------------------
     def set_status(self, message, level="info"):
-        text = "{0} {1}".format(STATUS_TAGS[level], message)
+        text = "{0} {1}".format(tr(STATUS_TAGS[level]), message)
         print(LOG_PREFIX + text)
         self.status.setPlainText(text)
         self.status.setStyleSheet(
@@ -546,23 +589,24 @@ class CableToolWindow(QtWidgets.QWidget):
     def _refresh_current(self):
         cable = self._current_cable()
         if cable:
-            self.current_label.setText("Editing: <b>{0}</b> (sliders update "
-                                       "it live)".format(
-                                           route_mod.short_name(cable.group)))
+            self.current_label.setText(tr("Editing: <b>{0}</b> (sliders "
+                                          "update it live)").format(
+                                              route_mod.short_name(
+                                                  cable.group)))
         else:
-            self.current_label.setText("Editing: <i>nothing yet</i>")
+            self.current_label.setText(tr("Editing: <i>nothing yet</i>"))
         self.rebuild_button.setEnabled(cable is not None)
         self.bake_button.setEnabled(cable is not None)
 
     def _select_anchors(self):
         anchors, ignored = route_mod.selected_anchors()
         if ignored:
-            self.set_status("Ignored {0} item(s) that are not objects, "
-                            "locators, vertices or faces.".format(
-                                len(ignored)), "warning")
+            self.set_status(tr("Ignored {0} item(s) that are not objects, "
+                               "locators, vertices or faces.").format(
+                                   len(ignored)), "warning")
         if not anchors:
-            raise CableToolError("Select one or more objects, locators, "
-                                 "vertices or faces first.")
+            raise CableToolError(tr("Select one or more objects, locators, "
+                                    "vertices or faces first."))
         return [cmds.ls(a)[0] for a in anchors]
 
     def _show_route(self, route):
@@ -578,10 +622,13 @@ class CableToolWindow(QtWidgets.QWidget):
         # selection clears the field (back to the default).
         selection = cmds.ls(selection=True, transforms=True) or []
         field.set_text(selection[0] if selection else "")
-        self.set_status("Clamp mesh set to {0}; it applies on Generate or "
-                        "Rebuild.".format(selection[0]) if selection else
-                        "Clamp mesh cleared: the default ring is used.",
-                        "ok")
+        if selection:
+            self.set_status(tr("Clamp mesh set to {0}; it applies on "
+                               "Generate or Rebuild.").format(selection[0]),
+                            "ok")
+        else:
+            self.set_status(tr("Clamp mesh cleared: the default ring is "
+                               "used."), "ok")
 
     def on_pick_anchor(self, field):
         # Not @guarded: it needs the field argument, which the decorator
@@ -592,7 +639,7 @@ class CableToolWindow(QtWidgets.QWidget):
             self.set_status(str(err), "warning")
         except Exception as err:
             print(LOG_PREFIX + traceback.format_exc())
-            self.set_status("Unexpected error handled: {0}: {1}".format(
+            self.set_status(tr("Unexpected error handled: {0}: {1}").format(
                 type(err).__name__, err), "error")
 
     @guarded
@@ -604,7 +651,7 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_remove_waypoint(self):
         row = self.waypoint_list.currentRow()
         if row < 0:
-            raise CableToolError("Click a waypoint in the list first.")
+            raise CableToolError(tr("Click a waypoint in the list first."))
         self.waypoint_list.takeItem(row)
 
     def on_move_waypoint(self, step):
@@ -620,12 +667,12 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_use_selection_order(self):
         anchors = self._select_anchors()
         if len(anchors) < 2:
-            raise CableToolError("Select at least 2 anchors (objects, "
-                                 "locators, vertices or faces), in the order "
-                                 "the cable should run.")
+            raise CableToolError(tr("Select at least 2 anchors (objects, "
+                                    "locators, vertices or faces), in the "
+                                    "order the cable should run."))
         self._show_route(route_mod.Route(anchors[0], anchors[-1],
                                          anchors[1:-1]))
-        self.set_status("Route set: {0} anchor(s).".format(len(anchors)),
+        self.set_status(tr("Route set: {0} anchor(s).").format(len(anchors)),
                         "ok")
 
     # -- settings handlers ------------------------------------------------
@@ -667,26 +714,28 @@ class CableToolWindow(QtWidgets.QWidget):
             return
         except Exception as err:
             print(LOG_PREFIX + traceback.format_exc())
-            self.set_status("Could not update {0}: {1}".format(
-                ", ".join(values), err), "error")
+            self.set_status(tr("Could not update {0}: {1}").format(
+                ", ".join(tr(DEFAULTS[k]["label"]) for k in values), err),
+                "error")
             return
         if rebuilt:
             self._refresh_current()
-            self.set_status("{0} changes how the build is put together, so "
-                            "{1} was rebuilt with it.".format(
-                                ", ".join(DEFAULTS[k]["label"]
-                                          for k in rebuilt),
-                                route_mod.short_name(cable.group)), "ok")
+            self.set_status(tr("{0} changes how the build is put together, "
+                               "so {1} was rebuilt with it.").format(
+                                   ", ".join(tr(DEFAULTS[k]["label"])
+                                             for k in rebuilt),
+                                   route_mod.short_name(cable.group)), "ok")
 
     @guarded
     def on_mode_changed(self, index=None):
         generator = self.generator_class()
         self.mode_stack.setCurrentIndex(self.mode_box.currentIndex())
-        noun = generator.noun.capitalize()
-        self.generate_button.setText("Generate " + noun)
+        self.generate_button.setText(tr("Generate {0}").format(
+            tr(generator.noun.capitalize())))
         self.generate_button.setEnabled(generator.available)
-        self.generate_button.setToolTip("Build a new live {0} along the "
-                                        "route.".format(generator.noun))
+        self.generate_button.setToolTip(tr("Build a new live {0} along the "
+                                           "route.").format(
+                                               tr(generator.noun)))
 
     def on_apply_preset(self, name):
         # Not @guarded: it needs the preset name (see on_pick_anchor).
@@ -695,20 +744,22 @@ class CableToolWindow(QtWidgets.QWidget):
             values = generator.preset(name)
             self._show_settings(values)
             cable = self._current_cable()
-            applied = ""
             if cable and cable.mode == generator.mode:
                 with nodes.undo_chunk("CableTool_Preset"):
                     cable.update(values)
                 self._refresh_current()
-                applied = " and applied to " + route_mod.short_name(
-                    cable.group)
-            self.set_status("Preset {0} loaded{1}.".format(name, applied),
-                            "ok")
+                self.set_status(tr("Preset {0} loaded and applied to {1}.")
+                                .format(tr(name),
+                                        route_mod.short_name(cable.group)),
+                                "ok")
+            else:
+                self.set_status(tr("Preset {0} loaded.").format(tr(name)),
+                                "ok")
         except CableToolError as err:
             self.set_status(str(err), "warning")
         except Exception as err:
             print(LOG_PREFIX + traceback.format_exc())
-            self.set_status("Unexpected error handled: {0}: {1}".format(
+            self.set_status(tr("Unexpected error handled: {0}: {1}").format(
                 type(err).__name__, err), "error")
 
     @guarded
@@ -716,13 +767,15 @@ class CableToolWindow(QtWidgets.QWidget):
         defaults = self.generator_class().default_settings()
         self._show_settings(defaults)
         cable = self._current_cable()
-        applied = ""
         if cable and cable.mode == self.generator_class().mode:
             with nodes.undo_chunk("CableTool_Reset"):
                 cable.update(defaults)
             self._refresh_current()
-            applied = " and applied to " + route_mod.short_name(cable.group)
-        self.set_status("Settings reset to defaults{0}.".format(applied))
+            self.set_status(tr("Settings reset to defaults and applied to "
+                               "{0}.").format(
+                                   route_mod.short_name(cable.group)))
+        else:
+            self.set_status(tr("Settings reset to defaults."))
 
     # -- build handlers ---------------------------------------------------
     @guarded
@@ -734,16 +787,17 @@ class CableToolWindow(QtWidgets.QWidget):
         self._refresh_current()
         cmds.select(group, replace=True)
 
-        message = ("Built {0} through {1} anchor(s). Move any anchor and the "
-                   "{2} follows; its settings are also on the group in the "
-                   "Channel Box.").format(route_mod.short_name(group),
-                                          len(route.anchors), cable.noun)
+        message = tr("Built {0} through {1} anchor(s). Move any anchor and "
+                     "the {2} follows; its settings are also on the group "
+                     "in the Channel Box.").format(
+                         route_mod.short_name(group), len(route.anchors),
+                         tr(cable.noun))
         overlapping = route.overlapping_spans()
         if overlapping:
-            self.set_status(message + " Note: {0} span(s) have both anchors "
-                            "on the same spot, so they are invisible until "
-                            "the anchors move apart.".format(overlapping),
-                            "warning")
+            self.set_status(message + " " + tr(
+                "Note: {0} span(s) have both anchors on the same spot, so "
+                "they are invisible until the anchors move apart.").format(
+                    overlapping), "warning")
         else:
             self.set_status(message, "ok")
 
@@ -751,29 +805,30 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_rebuild(self):
         cable = self._current_cable()
         if cable is None:
-            raise CableToolError("Nothing to rebuild yet. Generate first, or "
-                                 "select a build and use Edit > Load "
-                                 "Selected.")
+            raise CableToolError(tr("Nothing to rebuild yet. Generate "
+                                    "first, or select a build and use Edit "
+                                    "> Load Selected."))
         group = cable.rebuild(self.route(), self.settings(), self.extras())
         self._refresh_current()
         cmds.select(group, replace=True)
-        self.set_status("Rebuilt {0}.".format(route_mod.short_name(group)),
-                        "ok")
+        self.set_status(tr("Rebuilt {0}.").format(
+            route_mod.short_name(group)), "ok")
 
     @guarded
     def on_bake(self):
         cable = self._current_cable()
         if cable is None:
-            raise CableToolError("Nothing to bake yet. Generate first, or "
-                                 "select a build and use Edit > Load "
-                                 "Selected.")
+            raise CableToolError(tr("Nothing to bake yet. Generate first, "
+                                    "or select a build and use Edit > Load "
+                                    "Selected."))
         baked = cable.bake()
         self.current = None
         self._refresh_current()
         cmds.select(baked, replace=True)
-        self.set_status("Baked into {0}: plain meshes, no history. Ctrl+Z "
-                        "brings the live {1} back.".format(
-                            route_mod.short_name(baked), cable.noun), "ok")
+        self.set_status(tr("Baked into {0}: plain meshes, no history. "
+                           "Ctrl+Z brings the live {1} back.").format(
+                               route_mod.short_name(baked), tr(cable.noun)),
+                        "ok")
 
     @guarded
     def on_load_selected(self):
@@ -784,8 +839,8 @@ class CableToolWindow(QtWidgets.QWidget):
             if cable:
                 break
         if cable is None:
-            raise CableToolError("Select something the tool built (its "
-                                 "mesh, curve or group) first.")
+            raise CableToolError(tr("Select something the tool built (its "
+                                    "mesh, curve or group) first."))
         # Switch the dropdown to the build's mode, then show its settings.
         self.mode_box.setCurrentIndex(self.mode_box.findData(cable.mode))
         self._show_settings(cable.read_settings())
@@ -793,7 +848,7 @@ class CableToolWindow(QtWidgets.QWidget):
         self.current = cable
         self._refresh_current()
         self._show_route(cable.read_route())
-        self.set_status("Loaded {0}; the sliders now edit it.".format(
+        self.set_status(tr("Loaded {0}; the sliders now edit it.").format(
             route_mod.short_name(cable.group)), "ok")
 
     @guarded
@@ -805,27 +860,64 @@ class CableToolWindow(QtWidgets.QWidget):
             if cable:
                 cables[cable.cable_id] = cable
         if not cables:
-            raise CableToolError("Select something the tool built (its "
-                                 "mesh, curve or group) first.")
+            raise CableToolError(tr("Select something the tool built (its "
+                                    "mesh, curve or group) first."))
         with nodes.undo_chunk("CableTool_Delete"):
             for cable in cables.values():
                 cable.delete()
         self._refresh_current()
-        self.set_status("Deleted {0} build(s).".format(len(cables)), "ok")
+        self.set_status(tr("Deleted {0} build(s).").format(len(cables)),
+                        "ok")
 
     @guarded
     def on_clear_all(self):
         answer = QtWidgets.QMessageBox.question(
-            self, TOOL_NAME, "Delete everything this tool created? "
-                             "(Ctrl+Z undoes it.)")
+            self, tr(TOOL_NAME), tr("Delete everything this tool created? "
+                                    "(Ctrl+Z undoes it.)"))
         if answer != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         with nodes.undo_chunk("CableTool_ClearAll"):
             count = nodes.delete_all()
         self.current = None
         self._refresh_current()
-        self.set_status("Cleared {0} node(s) made by the tool.".format(count),
-                        "ok")
+        self.set_status(tr("Cleared {0} node(s) made by the tool.").format(
+            count), "ok")
+
+    # -- language -----------------------------------------------------------
+    def on_language(self, code):
+        if code != i18n.current():
+            switch_language(code)
+
+    def save_state(self):
+        """What switch_language carries over to the rebuilt window."""
+        return {
+            "mode": self.mode_box.currentData(),
+            "start": self.start_field.text(),
+            "end": self.end_field.text(),
+            "waypoints": [self.waypoint_list.item(i).text()
+                          for i in range(self.waypoint_list.count())],
+            "settings": self.settings(),
+            "extras": self.extras(),
+            "current": (self.current.group if self._current_cable()
+                        else None),
+        }
+
+    def restore_state(self, state):
+        self.mode_box.setCurrentIndex(self.mode_box.findData(state["mode"]))
+        self.start_field.set_text(state["start"])
+        self.end_field.set_text(state["end"])
+        for waypoint in state["waypoints"]:
+            self.waypoint_list.addItem(waypoint)
+        self._show_settings(state["settings"])
+        pickers = self.extra_fields.get(state["mode"], {})
+        for key, value in state["extras"].items():
+            if key in pickers:
+                pickers[key].set_text(value or "")
+        if state["current"]:
+            self.current = generators.from_node(state["current"])
+        self._refresh_current()
+        self.set_status(tr("Language: {0}.").format(
+            dict(i18n.LANGUAGES)[i18n.current()]), "ok")
 
     def closeEvent(self, event):
         self.on_drag_finished()  # never leave an undo chunk open

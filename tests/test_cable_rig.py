@@ -728,6 +728,51 @@ def installer_writes_a_module_file():
 
 
 @test
+def every_language_covers_every_string():
+    # A missing translation would quietly show English; a dropped {0}
+    # would raise when the message is shown. Catch both here.
+    import re
+    from cable_tool import dev, i18n
+    strings = dev.interface_strings()
+    assert len(strings) > 100, len(strings)
+    placeholder = re.compile(r"{\d}")
+    tag = re.compile(r"</?\w+>")
+    for code, _name in i18n.LANGUAGES:
+        if code == "en":
+            continue
+        table = i18n.catalog(code)
+        missing = [s for s in strings if not table.get(s)]
+        assert not missing, (code, missing[:5])
+        unused = [s for s in table if s not in strings]
+        assert not unused, (code, unused[:5])
+        for english, text in table.items():
+            assert sorted(placeholder.findall(english)) == \
+                sorted(placeholder.findall(text)), (code, english, text)
+            assert sorted(tag.findall(english)) == sorted(tag.findall(text)), \
+                (code, english, text)
+
+
+@test
+def errors_come_in_the_chosen_language():
+    from cable_tool import i18n
+    from cable_tool.config import CableToolError
+    from cable_tool.route import Route
+    try:
+        for code, expected in (("zh", u"\u8d77\u70b9"),     # 起点
+                               ("yue", u"\u8d77\u9ede"),    # 起點
+                               ("es", u"Inicio"), ("fr", u"D\u00e9but")):
+            i18n.set_language(code, remember=False)
+            try:
+                Route(None, None).validate()
+            except CableToolError as err:
+                assert expected in str(err), (code, str(err))
+            else:
+                raise AssertionError("no error")
+    finally:
+        i18n.set_language("en", remember=False)
+
+
+@test
 def plugin_unloads_cleanly():
     cmds.unloadPlugin("cableTool")
     assert not cmds.pluginInfo("cableTool", query=True, loaded=True)
@@ -738,6 +783,8 @@ def plugin_unloads_cleanly():
 # -------------------------------------------------------------------------
 def main():
     cmds.loadPlugin(os.path.abspath(PLUGIN))
+    from cable_tool import i18n
+    i18n.set_language("en", remember=False)  # messages are checked in English
     failures = 0
     for func in TESTS:
         cmds.file(new=True, force=True)

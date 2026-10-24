@@ -20,6 +20,7 @@ from cable_tool.config import (DEGREES_PER_TURN, SWEEP_INTERP_DISTANCE,
                                SWEEP_PROFILE_POLY, SWEEP_UVS_UNFOLD,
                                CableToolError)
 from cable_tool.generators.base import BaseGenerator
+from cable_tool.i18n import tr
 
 # Group attribute -> sweepMeshCreator attribute, connected directly.
 # The radius comes from each wire's solver (after Thickness Variation);
@@ -71,9 +72,9 @@ class CableGenerator(BaseGenerator):
     def _check_dependencies(self):
         nodes.ensure_sweep_plugin()
         if not cmds.pluginInfo("cableTool", query=True, loaded=True):
-            raise CableToolError(
+            raise CableToolError(tr(
                 "The cableTool plugin isn't loaded, and the cable solver "
-                "lives in it. Load cableTool.py in the Plug-in Manager.")
+                "lives in it. Load cableTool.py in the Plug-in Manager."))
 
     def _build_network(self, name, anchors, settings):
         source = None

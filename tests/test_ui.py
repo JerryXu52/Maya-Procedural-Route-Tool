@@ -34,6 +34,8 @@ def locator(name, pos):
 
 def run():
     cmds.loadPlugin(os.path.abspath(PLUGIN))
+    from cable_tool import i18n
+    i18n.set_language("en", remember=False)  # messages are checked in English
     from cable_tool import ui
     from cable_tool.config import DEFAULTS
     cmds.selectPref(trackSelectionOrder=True)
@@ -122,6 +124,26 @@ def run():
     assert cmds.getAttr(win.current.group + ".attach") is True
     assert wires() == 1
     geo = cmds.ls(win.current.group + "|*_geo")[0]
+
+    # Language: the window rebuilds in the new language and keeps the
+    # route, the settings and the cable being edited.
+    editing = win.current.group
+    expected = {"zh": u"\u751f\u6210\u7ebf\u7f06",      # 生成线缆
+                "yue": u"\u751f\u6210\u96fb\u7e9c",     # 生成電纜
+                "es": u"Generar cable", "fr": u"G\u00e9n\u00e9rer le c\u00e2ble"}
+    for code, label in expected.items():
+        win = ui.switch_language(code)
+        assert win.generate_button.text() == label, (code,
+                                                     win.generate_button.text())
+        assert win.language_actions[code].isChecked()
+        assert win.current and win.current.group == editing
+        assert win.start_field.text() == "A" and win.waypoint_list.count() == 1
+        assert win.fields["cable"]["samples"].value() == 6
+        win.on_rebuild()  # still works, and reports in that language
+        assert win.status.toPlainText().startswith(i18n.tr("[OK]")), code
+    win = ui.switch_language("en")
+    assert win.generate_button.text() == "Generate Cable"
+    assert win.status.toPlainText().startswith("[OK]")
 
     # A bad route is a warning in the status box, not an exception.
     win.start_field.set_text("")
