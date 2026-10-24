@@ -17,8 +17,10 @@ Built for SVA *Programming for Animators* (midterm).
 | ![Four utility poles with parallel power lines resting on the crossarms](docs/images/utility-poles.png) | ![Tangled wire bundles strung between two buildings, one draped over a pipe, and a clamped service pipe](docs/images/cyberpunk-alley.png) |
 | **Picket-fenced yard with its gate swung open** | **Ranch rail curving over a hill** |
 | ![A white picket fence round a house, its pickets following the ground, with a braced picket gate swung open into the yard](docs/images/gate-yard.png) | ![A three-rail ranch fence on a curved path over a hill, posts slightly weathered](docs/images/fence-ranch.png) |
+| **Wire fence with a double farm gate** | **The whole farm demo** |
+| ![Round posts carrying four sagging wires over rolling ground, with a two-leaf tubular steel gate standing open](docs/images/fence-wire.png) | ![Five fences on rolling ground: wire, privacy, picket yard and ranch rail](docs/images/fence-farm.png) |
 
-**Contents:** [Features](#features) · [Install](#install) · [Quick start](#quick-start) · [Using the tool](#using-the-tool) · [How it works](#how-it-works) · [Project layout](#project-layout) · [Testing](#testing) · [Known limits](#known-limits) · [Roadmap](#roadmap) · [Course record](#course-record)
+**Contents:** [Features](#features) · [Install](#install) · [Quick start](#quick-start) · [User guide](#user-guide) · [How it works](#how-it-works) · [Project layout](#project-layout) · [Testing](#testing) · [Known limits](#known-limits) · [Roadmap](#roadmap) · [Course record](#course-record)
 
 ---
 
@@ -57,74 +59,221 @@ Developed and tested in **Maya 2026** on macOS. Earlier versions are untested: S
 Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **Windows › Settings/Preferences › Plug-in Manager › Browse**.
 
 ## Quick start
-1. Open the tool from the **Cable Tool** menu in Maya's menu bar, the shelf button, or `cmds.cableTool()`.
-2. Choose a **Mode**: Cable / Pipe or Fence.
-3. Select two or more anchors in the order the build should run (objects, locators, vertices or faces) and press **Use Selection Order**.
-4. For a fence on terrain, select the ground and press **Get Selected** next to **Ground**.
-5. Optionally pick a **Preset** and press **Apply**, then press **Generate**.
-6. Move any anchor: the build follows. The sliders edit it live.
+1. Open **Cable Tool › Open Cable Tool** from Maya's menu bar.
+2. Pick a **Mode**: *Cable / Pipe* or *Fence*.
+3. Select two or more objects in the order the build should run, then press **Use Selection Order**.
+4. Press **Generate**, then move any of the objects: the build follows.
 
-**Demo scenes:** in the Script Editor, run `exec(open("/path/to/tests/demo_scene.py").read())`. It builds the utility poles and cyberpunk alley shown above. Then call:
+The [User guide](#user-guide) below explains each step in detail.
+
+**Demo scenes:** in the Script Editor, run `exec(open("/path/to/tests/demo_scene.py").read())`. It builds the utility poles and cyberpunk alley. Then call:
 - `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence with a double farm gate, a privacy fence and a pipe railing on a wall.
 - `demo("peer")` for the peer-review scene (cone, cube, sphere, cylinder).
 
-## Using the tool
-### Shared controls
-| Area | Controls |
-|---|---|
-| **Menu bar** | Edit (Reset Settings, Load Selected, Delete Selected, Clear All) · **Language** · Help |
-| **Mode** | `Cable / Pipe` · `Fence` · `Road` (greyed out until built) |
-| **Route** | `Start`, ordered `Waypoints`, `End`, each with `Get Selected`; **Use Selection Order** fills all three from the selection |
-| **Preset** | the mode's presets + `Apply` |
-| **Footer** | Generate · Rebuild Current · Bake · Clear All · colour-coded status box |
+## User guide
+**In this guide:** [The window](#the-window) · [1. Pick a route](#1-pick-a-route) · [2. Choose a mode and preset](#2-choose-a-mode-and-a-preset) · [3. Generate and adjust](#3-generate-and-adjust) · [4. Come back to a build later](#4-come-back-to-a-build-later) · [5. Finish: bake or delete](#5-finish-bake-or-delete) · [Cable / Pipe settings](#cable--pipe-settings) · [Fence settings](#fence-settings) · [Recipes](#recipes) · [Animating](#animating) · [Languages](#languages) · [Troubleshooting](#troubleshooting)
 
-- **Load Selected** reads a build's mode, settings, route and picked meshes back into the window, so you can keep editing it later or in another session.
-- **Bake** turns the current build into plain meshes with no history, in `<name>_baked_GRP`. Ctrl+Z brings the live build back.
-- **Language:** switch from the window's **Language** menu. The window rebuilds in place and keeps everything on it. Until you choose, the tool follows Maya's interface language.
-
-### Cable / Pipe
+### The window
 <img src="docs/images/window-en.png" alt="The Cable Tool window in Cable / Pipe mode" width="300" align="right">
 
-| Section | Controls |
-|---|---|
-| **Shape** | Radius · Profile Sides · Length Detail · Twist (degrees) · Taper |
-| **Path** | Sag · Stiffness · Corner Smoothing · Smoothness · Drape Over Mesh Waypoints |
-| **Wires** | Wire Count · Spread · Spread In A Row · Slack Variation · Thickness Variation · Seed |
-| **Ends** | Attach Ends to Surface · Lead-out Length |
-| **Surface** | End Caps · Texture Repeat per Unit |
-| **Hardware** | Clamp Mesh (empty = a plain ring) · Clamp Count · Clamp Size |
+Open it from **Cable Tool › Open Cable Tool** in Maya's menu bar, from the **Cable Tool** shelf button, or by running `cmds.cableTool()`. From top to bottom:
 
-- **Anchors.** A whole mesh as Start/End attaches to the surface point facing the next anchor. A **vertex or face** is a port: the cable leaves exactly along its normal. Several wires at a port fan out across the surface, so a bundle plugged into a wall spreads over the wall.
-- **Live vs rebuild.** Every setting updates instantly except **Wire Count** and **Clamp Count**, which change how many nodes there are. Those rebuild the cable in place when you release the slider.
-- **Clamp Mesh:** model your clamp at the origin around a tube of radius 1 lying along +X; it is instanced, never copied or deleted.
+| Part | What it's for |
+|---|---|
+| **Menu bar** | **Edit:** Reset Settings, Load Selected, Delete Selected, Clear All. **Language:** five interface languages. **Help:** About. |
+| **Mode** | What to build: *Cable / Pipe* or *Fence*. *Road* is listed greyed out until it's built. |
+| **Route** | Where to build it: *Start*, an ordered list of *Waypoints* and *End*. |
+| **Preset** | Ready-made settings for the chosen mode, applied with **Apply**. |
+| **Settings** | Collapsible sections of sliders, tick boxes and mesh pickers. Click a section title to fold it. Hover over any control for a tooltip. |
+| **Editing line** | Which build the sliders are editing right now. |
+| **Footer** | **Generate**, **Rebuild Current**, **Bake**, **Clear All**. |
+| **Status box** | The result of the last action. Green is done, grey is information, amber is a warning that says how to fix it, and red is an unexpected error (details in the Script Editor). |
+
+Every slider has a number field beside it. The slider covers the usual range; type into the field to go further, up to a safe limit.
 
 <br clear="right">
 
-### Fence
+### 1. Pick a route
+A route is an ordered list of **anchors**: *Start*, any number of *Waypoints*, then *End*. An anchor can be:
+
+| Anchor | How the build treats it |
+|---|---|
+| **Locator, group or joint** | The build passes exactly through its pivot. |
+| **Mesh object** | **Cable:** as Start or End, the cable attaches to the surface point facing the next anchor. As a waypoint, it drapes over the top. **Fence:** a post stands at its pivot. |
+| **Single vertex or face** | A **port**. A cable plugs in there and leaves along the surface normal. A fence post stands on that point. It keeps following if the mesh moves or deforms. |
+
+There are three ways to fill the route:
+- **All at once (fastest):** in the viewport, click the anchors in the order the build should run (Shift-click to add). Then press **Use Selection Order**. The first becomes Start, the last becomes End, and everything between becomes a waypoint in click order.
+- **One field at a time:** select one anchor and press **Get Selected** next to *Start* or *End*.
+- **Waypoints:** select one or more anchors and press **Add Selected**. Use **Up** and **Down** to reorder the highlighted waypoint, and **Remove** to drop it.
+
+> **Tip:** to pick a vertex or face, right-click the mesh, choose *Vertex* or *Face*, and click the component. Edges and UVs are ignored, with a note in the status box.
+
+### 2. Choose a mode and a preset
+1. Pick the **Mode**. Each mode has its own settings panel and its own presets.
+2. Optionally choose a **Preset** and press **Apply**. A preset fills in every setting below it; anything the preset doesn't mention goes back to its default.
+
+| Mode | Presets |
+|---|---|
+| Cable / Pipe | Single Pipe · Utility Line · Cyberpunk Tangle |
+| Fence | Picket Fence · Ranch Rail · Privacy Fence · Wire Fence · Pipe Railing |
+
+3. A fence that should stand on terrain needs a ground: select the ground mesh and press **Get Selected** next to **Ground** (in the *Layout* section).
+
+### 3. Generate and adjust
+1. Press **Generate** (it reads *Generate Cable* or *Generate Fence*). The new build is selected, and the editing line shows its name.
+2. **Move anything on the route:** the build follows straight away. That includes moving, rotating or editing anchors, moving their parent groups, and moving or reshaping a picked Ground mesh.
+3. **Drag any slider:** the build being edited updates live. A whole drag is one undo step.
+4. **Use the Channel Box:** every setting is also an attribute on the build's group (for example `fence_01_GRP`). You can set, connect or key it there like any other channel.
+
+Almost every setting is live. Two cable settings, **Wire Count** and **Clamp Count**, change how many nodes there are. They rebuild the cable in place when you release the slider, and the status box says so.
+
+Each Generate makes a new build. To change the route of an existing build, edit the Route fields and press **Rebuild Current**. Rebuild Current also applies a newly picked Ground, Post, Picket or Clamp mesh.
+
+### 4. Come back to a build later
+- **Load Selected** (Edit menu): select any part of a build (its mesh, curve or group) and choose *Load Selected*. The window switches to that build's mode and fills in its route, settings and picked meshes. The sliders then edit it. This works in a later session too, because everything is stored on the build's group.
+- **Reset Settings** (Edit menu): puts every setting of the current mode back to its default and applies it to the build being edited.
+
+### 5. Finish: bake or delete
+- **Bake:** turns the build being edited into plain meshes with no history, in a new `<name>_baked_GRP`, and removes the live setup. Use it when the layout is final or the scene leaves Maya. **Ctrl+Z** brings the live build back.
+- **Delete Selected** (Edit menu): removes the selected builds.
+- **Clear All:** removes everything the tool made, after asking. Your own objects are never touched, even ones with similar names.
+
+Every action is a single **Ctrl+Z**.
+
+### Cable / Pipe settings
+| Section | Setting | What it does |
+|---|---|---|
+| **Shape** | Radius · Profile Sides | Tube thickness, and how many sides it has. |
+| | Length Detail | Rings per tube diameter along the length. Raise it for smoother bends. |
+| | Twist · Taper | Rotation of the profile from start to end, in degrees; end radius as a multiple of the start. |
+| **Path** | Sag | Slack, as a fraction of each span's horizontal length. 0 = taut. A vertical run hangs straight. |
+| | Stiffness | 0 = a limp rope, 1 = a stiff hose that bends in wide curves. |
+| | Corner Smoothing | How smoothly the cable turns at waypoints. |
+| | Smoothness | How finely the cable is simulated. Higher follows contact more closely, but is slower. |
+| | Drape Over Mesh Waypoints | Rest on top of mesh waypoints, like a cable over a support. |
+| **Wires** | Wire Count · Spread | How many wires run along the route, and how far apart they meet each anchor. |
+| | Spread In A Row | On: parallel, like power lines on a crossarm. Off: a random tangle. |
+| | Slack / Thickness Variation · Seed | How much each wire differs from the others, and which random pattern is used. |
+| **Ends** | Attach Ends to Surface · Lead-out Length | Mesh ends start on the surface, and keep heading out of it for this distance before hanging. |
+| **Surface** | End Caps · Texture Repeat per Unit | Closed tube ends; texture tiles per scene unit along the cable. |
+| **Hardware** | Clamp Mesh · Clamp Count · Clamp Size | Clamps riding each wire: your own mesh or a plain ring, how many, and how big relative to the wire. |
+
+A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lying along +X. It is instanced along the wire, never copied or deleted.
+
+### Fence settings
 <img src="docs/images/window-fence.png" alt="The Cable Tool window in Fence mode" width="300" align="right">
 
-| Section | Controls |
-|---|---|
-| **Layout** | Ground (a mesh, optional) · Post Spacing · Post At Every Anchor · Path Curve · Rails On Other Side |
-| **Posts** | Post Mesh (optional) · Post Height · Post Width · Round Posts · Post Cap |
-| **Rails** | Rail Count · Lowest Rail · Highest Rail · Rail Size · Rail Thickness · Round Rails · Rails Through Posts · Rail Sag |
-| **Pickets** | Picket Mesh (optional) · Pickets · Picket Height · Picket Width · Picket Gap · Picket Thickness · Picket Point |
-| **Gate** | Gate After Anchor · Double Gate · Hinge On Other Post · Gate Swing |
-| **Surface** | Wear · Seed · Texture Repeat per Unit |
+| Section | Setting | What it does |
+|---|---|---|
+| **Layout** | Ground | A mesh to stand on. Each post and picket is dropped onto it. |
+| | Post Spacing | The most distance between posts. Each run is divided evenly. |
+| | Post At Every Anchor | On: a post on every anchor, so corners are square. Off: posts evenly along the whole route. |
+| | Path Curve | 0 = straight runs between anchors, 1 = a smooth curve through them. |
+| | Rails On Other Side | Mounts rails and pickets on the other face of the posts. |
+| **Posts** | Post Mesh | Your own post (see below). |
+| | Post Height · Post Width | Size above the ground. |
+| | Round Posts · Post Cap | Logs or poles instead of square posts; a pointed top on square posts. |
+| **Rails** | Rail Count · Lowest / Highest Rail | How many rails, spread evenly between two heights above the ground. 0 = posts only. |
+| | Rail Size · Rail Thickness | Board height (or wire/pipe diameter) and board thickness. |
+| | Round Rails · Rail Sag | Wires or pipes instead of boards, and how much they droop. |
+| | Rails Through Posts | Rails run through the posts' middle instead of across their front. |
+| **Pickets** | Picket Mesh | Your own picket (see below). |
+| | Pickets | Fills each span with upright pickets. |
+| | Height · Width · Gap · Thickness · Point | Picket size, spacing and how pointed the tops are. Gap 0 = a solid privacy fence. |
+| **Gate** | Gate After Anchor | The run from anchor N to N + 1 becomes a gate (Start = 1). 0 = no gate. |
+| | Double Gate · Hinge On Other Post | Two leaves meeting in the middle; which post a single gate hangs from. |
+| | Gate Swing | How far the gate is open, in degrees. Keyable. |
+| **Surface** | Wear · Seed · Texture Repeat per Unit | Leaning, uneven posts and pickets for an old fence; texture tiling. |
 
-- **Everything is live,** including the number of posts and pickets: drag an anchor and posts are added or removed as the fence grows.
-- **Heights are above the ground**, so a 1.2 m post is 1.2 m tall on a slope too. Without a Ground mesh the fence runs at the anchors' height.
-- **Gates.** Anchors are numbered along the route, Start = 1. *Gate After Anchor* N turns the run from anchor N to N + 1 into a gate: a gate post on each anchor and the gate across. Put the two anchors a gate's width apart (about 1–1.2 m for a garden gate, 3–4 m for a double farm gate).
-- **Yards.** Start and end the route at the two gate posts and set *Gate After Anchor* to the last anchor's number: the gate closes the gap from End back to Start. To close a ring with no gate, end the route on the anchor it started from.
-- **Animating the gate:** key **Gate Swing** on the fence's group (it's in the Channel Box). Positive opens to the front, negative to the back. Keys and other connections on settings survive Rebuild.
-- **Wire fence:** turn on *Round Rails*, make *Rail Size* small and add a little *Rail Sag*. **Pipe railing:** round posts and rails with *Rails Through Posts*.
-- **Post Mesh / Picket Mesh:** model the part standing on the origin, its front toward +X (a post) or +Z (a picket). It is scaled to Post Height or Picket Height. Picking one applies on Generate or Rebuild.
+**Things to know:**
+- **Heights are above the ground,** so a 1.2 m post is 1.2 m tall on a slope too. Without a Ground mesh, the fence runs at the anchors' height.
+- **Posts and pickets are added and removed live** as the fence gets longer or shorter.
+- **Closing a ring:** to make a ring with no gap, end the route on the same anchor it started from.
+- **Your own Post Mesh:** model it standing on the origin, facing +X.
+- **Your own Picket Mesh:** model it standing on the origin, facing +Z.
+- **Scaling your meshes:** each is scaled to Post Height or Picket Height, and keeps its UVs and hard and soft edges.
+- **Separate meshes:** posts, rails, pickets and the gate are separate meshes (`<name>_posts_geo` and so on), so each can have its own material.
 
 <br clear="right">
 
-| Wire fence with a double farm gate | The whole farm demo |
+### Recipes
+<details open>
+<summary><b>A pipe coming out of a wall</b></summary>
+
+1. Mode *Cable / Pipe*, preset *Single Pipe*.
+2. Select a **face** on the wall, then the object the pipe goes to, and press **Use Selection Order**.
+3. Generate. The pipe leaves the wall at a right angle. Raise **Lead-out Length** for a longer straight section before it bends.
+4. For brackets: raise **Clamp Count**. To use your own bracket, pick it as **Clamp Mesh** and press **Rebuild Current**.
+</details>
+
+<details>
+<summary><b>Power lines across utility poles</b></summary>
+
+1. Mode *Cable / Pipe*, preset *Utility Line*.
+2. Select the crossarms or pole tops in order and press **Use Selection Order**. The middle poles become draped waypoints.
+3. Generate. Set **Wire Count** to the number of lines and **Spread** to the crossarm's width.
+</details>
+
+<details>
+<summary><b>A cyberpunk wire tangle</b></summary>
+
+1. Mode *Cable / Pipe*, preset *Cyberpunk Tangle*.
+2. Pick faces on two building walls (and optionally a pipe or sign in between as a waypoint), then Generate.
+3. Change **Seed** until the tangle looks right, and raise **Slack Variation** for more chaos.
+</details>
+
+<details>
+<summary><b>A picket-fenced yard with a gate</b></summary>
+
+1. Create locators at the yard's corners, plus one locator on each side of where the gate should go, about 1.2 m apart.
+2. Select them in order, starting at one gate locator, going round the corners and ending at the other gate locator. Press **Use Selection Order**.
+3. Mode *Fence*, preset *Picket Fence*. Pick the terrain as **Ground**.
+4. Generate, then set **Gate After Anchor** to the number of the last anchor. The gate closes the gap.
+5. If the pickets face into the yard, tick **Rails On Other Side**. Drag **Gate Swing** to open the gate.
+</details>
+
+<details>
+<summary><b>A wire fence with a farm gate across a field</b></summary>
+
+1. Create locators along the fence line, with two of them 3–4 m apart where the gate goes.
+2. Select them in order and press **Use Selection Order**. Choose mode *Fence*, preset *Wire Fence*, and pick the field as **Ground**.
+3. Generate. Set **Gate After Anchor** to the number of the first gate locator, and tick **Double Gate**.
+4. Raise **Wear** for old, leaning posts.
+</details>
+
+<details>
+<summary><b>A railing along the top of a wall</b></summary>
+
+1. Create two locators on top of the wall and parent them to the wall, so the railing moves with it.
+2. Choose mode *Fence*, preset *Pipe Railing*, with no Ground. The posts stand at the locators' height.
+3. Generate, then adjust **Post Spacing** and **Rail Count**.
+</details>
+
+### Animating
+Settings are ordinary channels on the build's group, so any of them can be keyed in the Channel Box. Typical uses:
+- **Opening a gate:** key **Gate Swing**, for example 0 at frame 1 and −90 at frame 24. Only the gate is rebuilt each frame, so playback stays fast.
+- **A cable pulled tight:** key **Sag**.
+- **A fence being built:** key or animate the End anchor, and posts appear as it moves.
+
+Keys survive **Rebuild Current**, and a rebuild caused by Wire Count or Clamp Count.
+
+### Languages
+The tool speaks English, 简体中文, 粵語, Español and Français. Switch from the window's **Language** menu. The window rebuilds in place and keeps the route, the settings and the build being edited. Until you choose, the tool follows Maya's own interface language. Your choice is remembered.
+
+### Troubleshooting
+| The status box says… | What to do |
 |---|---|
-| ![Round posts carrying four sagging wires over rolling ground, with a two-leaf tubular steel gate standing open](docs/images/fence-wire.png) | ![Five fences on rolling ground: wire, privacy, picket yard and ranch rail](docs/images/fence-farm.png) |
+| *Set both a Start and an End anchor* | Fill both fields, or select at least two anchors and press **Use Selection Order**. |
+| *'…' is not an object or locator in the scene* | The anchor was renamed or deleted. Pick it again with **Get Selected**. |
+| *'…' is used twice in a row* | Two neighbouring anchors are the same object. Remove one of them. |
+| *… isn't loaded, and the cable solver / fence builder lives in it* | Load `cableTool.py` in **Windows › Settings/Preferences › Plug-in Manager**. |
+| *Could not load Maya's 'sweep' plugin* | Enable **sweep** in the Plug-in Manager (cables need it). |
+| *Nothing to rebuild / bake yet* | Generate first, or select a build and use **Edit › Load Selected**. |
+| *'…' has no mesh, so it can't be used as Ground* | Pick a polygon mesh for Ground, Post Mesh, Picket Mesh or Clamp Mesh. |
+
+- **A build is invisible:** two neighbouring anchors may sit on the same spot. Move one; the status box warns about this on Generate.
+- **Maya won't unload the plugin:** it can't while any cable or fence exists, even in the undo queue. Start a new scene first.
 
 ## How it works
 ### Cable / Pipe network (per wire)
@@ -282,7 +431,7 @@ The midterm's pitch, plan, progress and peer feedback.
 
 **2. The chore it ends.** Drawing CV curves, extruding profiles, rigging endpoints, adjusting sag, placing clamps and fixing UVs by hand takes 15–20 minutes per cable. This tool does it in a few clicks.
 
-**3. The UI.** One window with a pinned footer, collapsible sections, tooltips on every control, sliders with a typed field and a hard safety cap, and a colour-coded status box whose messages say how to fix a problem. See [Using the tool](#using-the-tool).
+**3. The UI.** One window with a pinned footer, collapsible sections, tooltips on every control, sliders with a typed field and a hard safety cap, and a colour-coded status box whose messages say how to fix a problem. See [User guide](#user-guide).
 
 **4. Why it's advanced.** Sweep Mesh core with editable history; live following with no clusters or constraints to break; waypoint routing; component attachment along normals; hardware instanced along the length; length-wise UVs. Since the pitch it has also gained a custom physics solver node, multi-wire runs, five interface languages and a complete Fence mode with its own builder node.
 
