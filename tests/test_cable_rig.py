@@ -1,6 +1,6 @@
 """Headless tests for the Cable Tool rig. Run with Maya's Python:
 
-    /Applications/Autodesk/maya2027/Maya.app/Contents/bin/mayapy tests/test_cable_rig.py
+    /Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy tests/test_cable_rig.py
 
 Each test starts from a new scene. Exits non-zero if anything fails.
 The window is tested separately in test_ui.py.
@@ -39,9 +39,6 @@ def cv(shape, index):
     return cmds.pointPosition("{0}.cv[{1}]".format(shape, index), world=True)
 
 
-LEAD_SAMPLES = 2  # config.LEAD_SAMPLES, imported after the plugin loads
-
-
 def build(anchors, **settings):
     from cable_tool.route import Route
     from cable_tool.generators import CableGenerator
@@ -61,12 +58,41 @@ def bbox(node):
     return cmds.exactWorldBoundingBox(node)
 
 
+def curve_points(shape, steps=400):
+    low = cmds.getAttr(shape + ".minValue")
+    high = cmds.getAttr(shape + ".maxValue")
+    return [cmds.pointOnCurve(shape, parameter=low + (high - low) * k / steps,
+                              position=True) for k in range(steps + 1)]
+
+
+def tightest_bend(shape, steps=400):
+    """Smallest radius of curvature along the curve (0 = straight, which
+    is skipped)."""
+    low = cmds.getAttr(shape + ".minValue")
+    high = cmds.getAttr(shape + ".maxValue")
+    radii = [cmds.pointOnCurve(shape, parameter=low + (high - low) * k
+                               / steps, curvatureRadius=True)
+             for k in range(1, steps)]
+    return min(r for r in radii if r > 1e-9)
+
+
+def solver_of(cable, wire=0):
+    """The Python object behind a wire's solver node."""
+    import maya.api.OpenMaya as om
+    name = cmds.ls("{0}_w{1:02d}_solver".format(cable.name, wire))[0]
+    selection = om.MSelectionList()
+    selection.add(name)
+    return om.MFnDependencyNode(selection.getDependNode(0)).userNode()
+
+
 # -------------------------------------------------------------------------
 @test
 def plugin_loads_and_registers_command():
     assert cmds.pluginInfo("cableTool", query=True, loaded=True)
     assert "cableTool" in (cmds.pluginInfo("cableTool", query=True,
                                            command=True) or [])
+    assert "cableToolSolver" in (cmds.pluginInfo(
+        "cableTool", query=True, dependNode=True) or [])
     assert cmds.pluginInfo("sweep", query=True, loaded=True)
 
 
@@ -76,13 +102,17 @@ def ends_follow_anchors_live():
     b = locator("B", (10, 5, 0))
     cable = build([a, b], sag=0.2)
     shape, geo = parts(cable)
-    last = cmds.getAttr(shape + ".spans") + cmds.getAttr(shape + ".degree") - 1
+
+    def last():  # the solver's point count follows the cable's length
+        return cv(shape, cmds.getAttr(shape + ".spans")
+                  + cmds.getAttr(shape + ".degree") - 1)
+
     assert close(cv(shape, 0), (0, 5, 0))
-    assert close(cv(shape, last), (10, 5, 0))
+    assert close(last(), (10, 5, 0))
     assert cmds.polyEvaluate(geo, face=True) > 0
 
     cmds.xform(b, worldSpace=True, translation=(12, 8, 3))
-    assert close(cv(shape, last), (12, 8, 3)), cv(shape, last)
+    assert close(last(), (12, 8, 3)), last()
     box = bbox(geo)
     assert box[3] > 11.8 and box[5] > 2.8, box
 
@@ -103,23 +133,67 @@ def anchors_inside_moving_groups_still_follow():
 def sag_is_live_and_scales_with_length():
     a = locator("A", (0, 0, 0))
     b = locator("B", (10, 0, 0))
-    cable = build([a, b], sag=0.0, samples=7)
+    cable = build([a, b], sag=0.0)
     shape, _geo = parts(cable)
-    mid = 4  # anchor + 7 samples: index 4 is t = 0.5
-    assert abs(cv(shape, mid)[1]) < 1e-4
+    # Taut, but a real cable under its own weight never hangs dead
+    # straight: the solver allows well under 0.1% stretch.
+    assert min(p[1] for p in curve_points(shape)) > -0.2
 
     cable.update({"sag": 0.2})
-    assert close(cv(shape, mid), (5, -2.0, 0)), cv(shape, mid)
+    drop = -min(p[1] for p in curve_points(shape))
+    assert abs(drop - 2.0) < 0.3, drop  # sag x horizontal length
 
     cmds.xform(b, worldSpace=True, translation=(20, 0, 0))  # double length
-    assert close(cv(shape, mid), (10, -4.0, 0)), cv(shape, mid)
+    longer = -min(p[1] for p in curve_points(shape))
+    assert abs(longer / drop - 2.0) < 0.2, (drop, longer)
+
+
+@test
+def vertical_run_hangs_straight():
+    # Sag follows horizontal reach: a vertical cable has none to sag.
+    a = locator("A", (0, 10, 0))
+    b = locator("B", (0, 0, 0))
+    cable = build([a, b], sag=0.3)
+    shape, _geo = parts(cable)
+    worst = max(abs(p[0]) + abs(p[2]) for p in curve_points(shape))
+    assert worst < 0.05, worst
+
+
+@test
+def lowest_point_sits_toward_the_lower_end():
+    # A hanging cable between ends at different heights is lowest nearer
+    # the lower end.
+    a = locator("A", (0, 4, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], sag=0.4)
+    shape, _geo = parts(cable)
+    points = curve_points(shape)
+    lowest = min(points, key=lambda p: p[1])
+    assert lowest[0] > 5.0, lowest
+
+
+@test
+def cable_keeps_its_length():
+    # The solver may not stretch the cable to satisfy gravity or contact.
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    cmds.xform(cube, worldSpace=True, translation=(5, 0, 0))
+    a = locator("A", (0, 1, 0))
+    b = locator("B", (10, 1, 0))
+    cable = build([a, cube, b], sag=0.2)
+    parts(cable)  # evaluate
+    node = solver_of(cable)
+    import numpy as np
+    actual = float(np.sum(np.linalg.norm(np.diff(node._last, axis=0),
+                                         axis=1)))
+    assert abs(actual / node._rest_len - 1.0) < 0.02, (actual,
+                                                        node._rest_len)
 
 
 @test
 def shape_settings_drive_sweep_live():
     a = locator("A", (0, 0, 0))
     b = locator("B", (10, 0, 0))
-    cable = build([a, b], sag=0.0, radius=0.1)
+    cable = build([a, b], sag=0.0, radius=0.1, sides=8)
     _shape, geo = parts(cable)
     assert abs(bbox(geo)[5] - 0.1) < 0.01
     cable.update({"radius": 0.5})
@@ -133,6 +207,18 @@ def shape_settings_drive_sweep_live():
     cmds.setAttr(cable.group + ".taper", 0.0)
     sweep = cmds.listConnections(cable.group + ".taper", destination=True)[0]
     assert cmds.getAttr(sweep + ".taper") == 0.0
+
+
+@test
+def tube_is_smooth_along_its_length():
+    # Live check: Sweep Mesh's default put rings only at a few points, so
+    # the tube was a chain of straight, creased pieces.
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], radius=0.1, sides=8, sag=0.2)
+    _shape, geo = parts(cable)
+    rings = cmds.polyEvaluate(geo, face=True) / 8
+    assert rings > 40, rings  # a ring at least every diameter
 
 
 @test
@@ -160,18 +246,131 @@ def waypoints_route_the_curve():
     a = locator("A", (0, 0, 0))
     w = locator("W", (5, 0, 5))
     b = locator("B", (10, 0, 0))
-    cable = build([a, w, b], sag=0.0, samples=6)
+    cable = build([a, w, b], sag=0.0)
     shape, _geo = parts(cable)
-    assert close(cv(shape, 7), (5, 0, 5))  # 1 anchor + 6 samples, then W
-    # The curve itself passes close to the waypoint (a rounded bend).
-    closest = cmds.createNode("nearestPointOnCurve")
-    cmds.connectAttr(shape + ".worldSpace[0]", closest + ".inputCurve")
-    cmds.setAttr(closest + ".inPosition", 5, 0, 5)
-    gap = sum((p - q) ** 2 for p, q in zip(
-        cmds.getAttr(closest + ".position")[0], (5, 0, 5))) ** 0.5
-    assert gap < 0.25, gap
+
+    def gap():
+        target = cmds.xform(w, query=True, worldSpace=True, translation=True)
+        return min(sum((p - q) ** 2 for p, q in zip(point, target)) ** 0.5
+                   for point in curve_points(shape, 800))
+
+    assert gap() < 0.05, gap()
     cmds.xform(w, worldSpace=True, translation=(5, 4, 5))
-    assert close(cv(shape, 7), (5, 4, 5))
+    assert gap() < 0.05, gap()
+
+
+@test
+def draped_waypoint_is_wrapped_not_cut_through():
+    # Live check: a cable routed through a box ran through its middle,
+    # then cut through its walls; it now rests on top and wraps the edges.
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    cmds.xform(cube, worldSpace=True, translation=(0, 4, 0))
+    a = locator("A", (-6, 1, 0))
+    b = locator("B", (6, 2, 0))
+    cable = build([a, cube, b], radius=0.15, sag=0.1)
+    shape, _geo = parts(cable)
+    points = curve_points(shape, 800)
+
+    def clear_of_box(p):  # distance from the tube's center to the box
+        return sum(max(abs(c - o) - 1.0, 0.0) ** 2
+                   for c, o in zip(p, (0, 4, 0))) ** 0.5
+
+    # The tube may graze a sharp edge (the curve between two simulated
+    # points cuts the corner a little) but never cut into the box.
+    nearest = min(clear_of_box(p) for p in points)
+    assert nearest > 0.6 * 0.15, nearest
+    top = max(points, key=lambda p: p[1])
+    assert abs(top[1] - (5.0 + 0.15)) < 0.05, top  # resting on the top
+
+    cable.update({"drape": 0})  # straight through the middle again
+    assert any(abs(p[0]) < 0.05 and abs(p[1] - 4.0) < 0.05
+               for p in curve_points(shape, 800))
+
+
+@test
+def mesh_ends_sit_on_the_surface_and_leave_outward():
+    # Peer run: cables ended at each object's pivot, inside it, so several
+    # cables met at one point and crossed there.
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    b = locator("B", (10, 0, 0))
+    cable = build([cube, b], sag=0.1, leadOut=0.5)
+    shape, _geo = parts(cable)
+    assert close(cv(shape, 0), (1, 0, 0)), cv(shape, 0)
+    low = cmds.getAttr(shape + ".minValue")
+    tangent = cmds.pointOnCurve(shape, parameter=low, normalizedTangent=True)
+    assert tangent[0] > 0.99, tangent  # straight out along the normal
+
+    cmds.xform(cube, worldSpace=True, translation=(0, 5, 0))
+    assert close(cv(shape, 0), (1, 4, 0)), cv(shape, 0)
+    cmds.setAttr(cube + ".rotateZ", 90)  # normals follow the mesh live
+    assert close(cv(shape, 0), (1, 4, 0)), cv(shape, 0)
+
+    cable.update({"attach": 0})
+    assert close(cv(shape, 0), (0, 5, 0)), cv(shape, 0)
+
+
+@test
+def cable_leaves_a_surface_without_folding():
+    # Live checks: off a cone's side the cable first folded over itself,
+    # then kinked where the straight lead-out met the hanging part. A
+    # real cable can't bend much tighter than a few times its radius.
+    cone = cmds.polyCone(radius=1, height=2, name="cone")[0]
+    cmds.xform(cone, worldSpace=True, translation=(-8, 1, 0))
+    w = locator("W", (-3, 4, 4))
+    b = locator("B", (8, 1, 0))
+    cable = build([cone, w, b], radius=0.15)
+    shape, _geo = parts(cable)
+    assert tightest_bend(shape) > 2 * 0.15, tightest_bend(shape)
+
+
+@test
+def several_wires_spread_and_repeat():
+    a = locator("A", (0, 5, 0))
+    b = locator("B", (10, 5, 0))
+    run = build([a, b], wireCount=4, spread=2.0, spreadRow=1,
+                slackVariation=0.0, thicknessVariation=0.0)
+    curves = sorted(cmds.ls(run.group + "|*_crv", long=True))
+    assert len(curves) == 4, curves
+    starts = sorted(cv(cmds.listRelatives(c, shapes=True,
+                                          fullPath=True)[0], 0)[2]
+                    for c in curves)
+    expected = [-1.0, -1.0 / 3, 1.0 / 3, 1.0]  # a row across Spread
+    assert all(abs(z - e) < 1e-3 for z, e in zip(starts, expected)), starts
+
+    # A cluster: random, but the same Seed always gives the same wires.
+    run.update({"spreadRow": 0, "seed": 5})
+    shape = cmds.listRelatives(curves[0], shapes=True, fullPath=True)[0]
+    first = cv(shape, 0)
+    run.update({"seed": 6})
+    assert not close(cv(shape, 0), first)
+    run.update({"seed": 5})
+    assert close(cv(shape, 0), first)
+
+
+@test
+def wire_count_rebuilds_and_keeps_name():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b])
+    name = cable.group.split("|")[-1]
+    assert cable.update({"wireCount": 3}) == ["wireCount"]
+    assert cable.exists()
+    assert cable.group.split("|")[-1] == name
+    assert len(cmds.ls(cable.group + "|*_crv")) == 3
+    # Smoothness is live now (the solver re-samples), no rebuild needed.
+    assert cable.update({"samples": 10}) == []
+
+
+@test
+def presets_fill_in_defaults():
+    from cable_tool.generators import CableGenerator
+    tangle = CableGenerator.preset("Cyberpunk Tangle")
+    assert tangle["wireCount"] == 14 and tangle["spreadRow"] == 0
+    assert set(tangle) == set(CableGenerator.setting_keys())
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], **CableGenerator.preset("Utility Line"))
+    assert len(cmds.ls(cable.group + "|*_crv")) == 4
 
 
 @test
@@ -216,89 +415,6 @@ def build_is_one_undo_step():
     assert len(set(cmds.ls()) - before) > 10
     cmds.undo()
     assert set(cmds.ls()) == before, set(cmds.ls()) ^ before
-
-
-@test
-def rebuild_applies_smoothness_and_keeps_name():
-    a = locator("A", (0, 0, 0))
-    b = locator("B", (10, 0, 0))
-    cable = build([a, b], samples=4)
-    name = cable.group.split("|")[-1]
-    # Peer run: Smoothness needed a manual Rebuild. update() now rebuilds.
-    assert cable.update({"samples": 10}) == ["samples"]
-    assert cable.exists()
-    shape, _geo = parts(cable)
-    assert cable.group.split("|")[-1] == name
-    assert cmds.getAttr(shape + ".spans") + 3 == 12  # 2 anchors + 10
-
-
-@test
-def waypoints_turn_smoothly():
-    # Peer run: waypoints made sharp, tight corners.
-    a = locator("A", (0, 0, 0))
-    w = locator("W", (5, 0, 5))
-    b = locator("B", (10, 0, 0))
-
-    def tightest_bend(smoothing, sag):
-        """Smallest radius of curvature along the cable."""
-        cable = build([a, w, b], sag=sag, smoothing=smoothing)
-        shape, _geo = parts(cable)
-        low = cmds.getAttr(shape + ".minValue")
-        high = cmds.getAttr(shape + ".maxValue")
-        steps = 400
-        radius = min(cmds.pointOnCurve(shape, parameter=low + (high - low)
-                                       * k / steps, curvatureRadius=True)
-                     for k in range(1, steps))
-        cable.delete()
-        return radius
-
-    # Taut: straight runs meet in a point; smoothing rounds the corner.
-    assert tightest_bend(0.0, 0.0) < 0.1
-    assert tightest_bend(1.0, 0.0) > 1.0
-    # Sagging: smoothing still opens the tightest bend up clearly.
-    sharp, smooth = tightest_bend(0.0, 0.3), tightest_bend(1.0, 0.3)
-    assert smooth > sharp * 1.5, (sharp, smooth)
-
-
-@test
-def mesh_ends_sit_on_the_surface_and_lead_out():
-    # Peer run: cables ended at each object's pivot, inside it, so several
-    # cables met at one point and crossed there.
-    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
-    b = locator("B", (10, 0, 0))
-    cable = build([cube, b], sag=0.0, leadOut=0.5)
-    shape, _geo = parts(cable)
-    assert close(cv(shape, 0), (1, 0, 0)), cv(shape, 0)
-    lead = 1 + LEAD_SAMPLES  # start, lead span samples, then the lead point
-    assert close(cv(shape, lead), (1.5, 0, 0)), cv(shape, lead)
-
-    cmds.xform(cube, worldSpace=True, translation=(0, 5, 0))
-    assert close(cv(shape, 0), (1, 4, 0)), cv(shape, 0)
-    cmds.setAttr(cube + ".rotateZ", 90)  # normals follow the mesh live
-    assert close(cv(shape, 0), (1, 4, 0)), cv(shape, 0)
-
-    cable.update({"attach": 0})
-    assert close(cv(shape, 0), (0, 5, 0)), cv(shape, 0)
-    assert close(cv(shape, lead), (0, 5, 0)), cv(shape, lead)
-
-
-@test
-def cable_leaves_a_surface_without_folding():
-    # Live check in Maya: off a cone's side the spline cut straight from
-    # the lead-out point to the next anchor, bending tighter than the
-    # tube's radius, so the tube folded over itself at the end.
-    cone = cmds.polyCone(radius=1, height=2, name="cone")[0]
-    cmds.xform(cone, worldSpace=True, translation=(-8, 1, 0))
-    w = locator("W", (-3, 4, 4))
-    b = locator("B", (8, 1, 0))
-    cable = build([cone, w, b], radius=0.3)
-    shape, _geo = parts(cable)
-    low = cmds.getAttr(shape + ".minValue")
-    high = cmds.getAttr(shape + ".maxValue")
-    tightest = min(cmds.pointOnCurve(shape, parameter=low + (high - low)
-                                     * k / 400.0, curvatureRadius=True)
-                   for k in range(1, 400))
-    assert tightest > 0.3, tightest
 
 
 @test

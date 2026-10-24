@@ -10,7 +10,7 @@ modes that are not built yet are listed greyed out.
 
 The sliders edit the *current build* live: the last one generated, or
 the one picked with Edit > Load Selected. Settings that change the
-node network's structure (Smoothness) rebuild it automatically, once a
+node network's structure (Wire Count) rebuild it automatically, once a
 slider drag is released.
 """
 
@@ -409,6 +409,8 @@ class CableToolWindow(QtWidgets.QWidget):
             layout.addWidget(note)
             return panel
 
+        if generator.presets:
+            layout.addLayout(self._build_preset_row(generator))
         fields = self.fields[generator.mode] = {}
         for title, keys in generator.sections:
             section = CollapsibleSection(title)
@@ -422,6 +424,24 @@ class CableToolWindow(QtWidgets.QWidget):
                 section.body_layout.addWidget(field)
             layout.addWidget(section)
         return panel
+
+    def _build_preset_row(self, generator):
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel("Preset"))
+        box = QtWidgets.QComboBox()
+        for name, _values in generator.presets:
+            box.addItem(name)
+        box.setToolTip("A starting point for the settings below.")
+        apply_button = QtWidgets.QPushButton("Apply")
+        apply_button.setToolTip("Set every setting below from the preset, "
+                                "and apply it to the current build.")
+        apply_button.clicked.connect(
+            lambda: self.on_apply_preset(box.currentText()))
+        row.addWidget(box, 1)
+        row.addWidget(apply_button)
+        self.preset_boxes = getattr(self, "preset_boxes", {})
+        self.preset_boxes[generator.mode] = box
+        return row
 
     def _build_footer(self):
         footer = QtWidgets.QWidget()
@@ -613,8 +633,8 @@ class CableToolWindow(QtWidgets.QWidget):
             return
         if rebuilt:
             self._refresh_current()
-            self.set_status("{0} changes the curve's point count, so {1} was "
-                            "rebuilt with it.".format(
+            self.set_status("{0} changes how the build is put together, so "
+                            "{1} was rebuilt with it.".format(
                                 ", ".join(DEFAULTS[k]["label"]
                                           for k in rebuilt),
                                 route_mod.short_name(cable.group)), "ok")
@@ -628,6 +648,29 @@ class CableToolWindow(QtWidgets.QWidget):
         self.generate_button.setEnabled(generator.available)
         self.generate_button.setToolTip("Build a new live {0} along the "
                                         "route.".format(generator.noun))
+
+    def on_apply_preset(self, name):
+        # Not @guarded: it needs the preset name (see on_pick_anchor).
+        try:
+            generator = self.generator_class()
+            values = generator.preset(name)
+            self._show_settings(values)
+            cable = self._current_cable()
+            applied = ""
+            if cable and cable.mode == generator.mode:
+                with nodes.undo_chunk("CableTool_Preset"):
+                    cable.update(values)
+                self._refresh_current()
+                applied = " and applied to " + route_mod.short_name(
+                    cable.group)
+            self.set_status("Preset {0} loaded{1}.".format(name, applied),
+                            "ok")
+        except CableToolError as err:
+            self.set_status(str(err), "warning")
+        except Exception as err:
+            print(LOG_PREFIX + traceback.format_exc())
+            self.set_status("Unexpected error handled: {0}: {1}".format(
+                type(err).__name__, err), "error")
 
     @guarded
     def on_reset(self):

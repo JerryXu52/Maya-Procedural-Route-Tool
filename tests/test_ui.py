@@ -72,16 +72,23 @@ def run():
     fields["radius"].dragFinished.emit()
     assert abs(cmds.getAttr(win.current.group + ".radius") - 0.4) < 1e-6
 
-    # Smoothness rebuilds the cable by itself (peer run: it didn't).
-    fields["samples"].field.setValue(8)
-    assert "rebuilt" in win.status.toPlainText(), win.status.toPlainText()
-    assert cmds.getAttr(win.current.group + ".samples") == 8
-    # During a drag it waits for the release.
-    fields["samples"].dragStarted.emit()
+    # Smoothness is live (peer run: it needed a manual Rebuild).
     fields["samples"].field.setValue(10)
-    assert cmds.getAttr(win.current.group + ".samples") == 8
-    fields["samples"].dragFinished.emit()
     assert cmds.getAttr(win.current.group + ".samples") == 10
+
+    def wires():
+        return len(cmds.ls(win.current.group + "|*_crv"))
+
+    # Wire Count changes the node network, so the run rebuilds itself.
+    fields["wireCount"].field.setValue(3)
+    assert "rebuilt" in win.status.toPlainText(), win.status.toPlainText()
+    assert wires() == 3
+    # During a drag it waits for the release.
+    fields["wireCount"].dragStarted.emit()
+    fields["wireCount"].field.setValue(5)
+    assert wires() == 3
+    fields["wireCount"].dragFinished.emit()
+    assert wires() == 5
     assert abs(cmds.getAttr(win.current.group + ".radius") - 0.4) < 1e-6
 
     # On/off settings use a checkbox.
@@ -99,13 +106,21 @@ def run():
     cmds.select(geo)
     win.on_load_selected()
     assert fields["samples"].value() == 10  # read back from the cable
+    assert fields["wireCount"].value() == 5
     assert fields["attach"].value() == 0
     assert win.waypoint_list.count() == 1
 
-    # Reset applies the defaults to the cable, rebuilding for Smoothness.
+    # A preset fills every field and applies to the current run.
+    win.on_apply_preset("Utility Line")
+    assert fields["wireCount"].value() == 4 and wires() == 4
+    assert fields["spreadRow"].value() == 1
+    assert cmds.getAttr(win.current.group + ".spreadRow") is True
+
+    # Reset applies the defaults to the cable, rebuilding for Wire Count.
     win.on_reset()
     assert cmds.getAttr(win.current.group + ".samples") == 6
     assert cmds.getAttr(win.current.group + ".attach") is True
+    assert wires() == 1
     geo = cmds.ls(win.current.group + "|*_geo")[0]
 
     # A bad route is a warning in the status box, not an exception.
@@ -119,6 +134,9 @@ def run():
     assert win.current is None or not win.current.exists()
     assert not win.rebuild_button.isEnabled()
 
+    # Maya won't unload a plugin while its nodes (the cable solvers)
+    # exist, even in the undo queue, so start a fresh scene first.
+    cmds.file(new=True, force=True)
     cmds.unloadPlugin("cableTool")  # closes the window
     assert ui._window is None
     app.processEvents()

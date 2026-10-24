@@ -24,6 +24,7 @@ class BaseGenerator(object):
     available = False      # False = shown greyed out in the dropdown
     summary = ""           # one line for the mode's panel / tooltip
     sections = ()          # (("Shape", ("radius", ...)), ...) for the UI
+    presets = ()           # (("Name", {setting: value}), ...)
 
     def __init__(self, group=None):
         self.group = group
@@ -36,6 +37,13 @@ class BaseGenerator(object):
     @classmethod
     def default_settings(cls):
         return {key: DEFAULTS[key]["default"] for key in cls.setting_keys()}
+
+    @classmethod
+    def preset(cls, name):
+        """Full settings for a preset: its values over the defaults."""
+        values = cls.default_settings()
+        values.update(dict(cls.presets)[name])
+        return values
 
     @classmethod
     def sanitize(cls, settings):

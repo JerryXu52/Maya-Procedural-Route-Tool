@@ -93,14 +93,6 @@ def selected_transforms():
     return anchors, ignored
 
 
-def anchor_driver(anchor, name, cable_id):
-    """A decomposeMatrix reading the anchor's world matrix. Its
-    outputTranslate follows the anchor live, with no constraint."""
-    driver = nodes.create("decomposeMatrix", name, cable_id)
-    cmds.connectAttr(anchor + ".worldMatrix[0]", driver + ".inputMatrix")
-    return driver + ".outputTranslate"
-
-
 def mesh_shape(anchor):
     """The anchor's own visible mesh shape, or None for locators, joints,
     groups and other non-mesh anchors."""

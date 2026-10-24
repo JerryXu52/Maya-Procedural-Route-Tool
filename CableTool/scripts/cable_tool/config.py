@@ -8,7 +8,7 @@ never disagree.
 import math
 
 TOOL_NAME = "Cable Tool"
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 # Attribute added to every node the tool creates. Its value is the UUID
 # of the cable's group, so cleanup finds nodes by tag, never by name.
@@ -23,16 +23,27 @@ EPSILON = 1e-6
 # sweepMeshCreator enum indices. Indices, not names, because enum names
 # are localised (they come back translated in non-English Maya).
 SWEEP_PROFILE_POLY = 0
+SWEEP_INTERP_DISTANCE = 3  # Precision, Start to End, EP to EP, Distance
+
+# A draped waypoint rests on the surface point closest to a probe this
+# far above the waypoint's pivot: the top of the object.
+DRAPE_PROBE_HEIGHT = 1000.0
+
+# Spline tangent at a mesh end, per unit of span length (a plain
+# Catmull-Rom point gets about 1). Below ~0.5 the cable bends tighter
+# than a real cable can right off the surface; above ~1 it overshoots.
+EXIT_TANGENT = 0.6
+
+# Extra spline tangent at a mesh end per unit of Lead-out Length. A Hermite
+# curve stays close to its tangent line for about a third of the tangent
+# length, so 3 makes the cable hold its exit direction for roughly the
+# lead-out length longer before it turns and hangs.
+LEAD_TANGENT = 3.0
 
 
 # Sweep Mesh measures Twist in whole turns (1 = 360 degrees); the tool
 # shows degrees, so the network divides by this.
 DEGREES_PER_TURN = 360.0
-
-# Curve points on the short span between a surface attach point and its
-# lead-out point. It is nearly straight, so it needs few.
-LEAD_SAMPLES = 2
-
 
 # Each setting: default, slider range (comfortable), field range (hard
 # cap), its type (float, int or bool), and whether changing it needs the
@@ -41,9 +52,14 @@ DEFAULTS = {
     "radius":  {"default": 0.1, "slider": (0.01, 1.0), "field": (0.001, 50.0),
                 "type": "float", "rebuild": False, "label": "Radius",
                 "tip": "Tube radius in scene units."},
-    "sides":   {"default": 8, "slider": (3, 32), "field": (3, 64),
+    "sides":   {"default": 12, "slider": (3, 32), "field": (3, 64),
                 "type": "int", "rebuild": False, "label": "Profile Sides",
                 "tip": "Number of sides around the tube."},
+    "lengthDetail": {"default": 2.0, "slider": (0.5, 6.0),
+                     "field": (0.1, 20.0), "type": "float",
+                     "rebuild": False, "label": "Length Detail",
+                     "tip": "Rings along the tube per tube diameter. Higher "
+                            "is smoother in bends, and heavier."},
     "twist":   {"default": 0.0, "slider": (-360.0, 360.0),
                 "field": (-3600.0, 3600.0), "type": "float",
                 "rebuild": False, "label": "Twist",
@@ -54,8 +70,9 @@ DEFAULTS = {
                 "tip": "End radius as a multiple of the start radius."},
     "sag":     {"default": 0.15, "slider": (0.0, 1.0), "field": (0.0, 3.0),
                 "type": "float", "rebuild": False, "label": "Sag",
-                "tip": "Droop of each span as a fraction of its length. "
-                       "0 = taut."},
+                "tip": "Slack: how far each span would droop, as a "
+                       "fraction of its horizontal length. 0 = taut; a "
+                       "vertical run hangs straight."},
     "smoothing": {"default": 1.0, "slider": (0.0, 1.0), "field": (0.0, 1.0),
                   "type": "float", "rebuild": False,
                   "label": "Corner Smoothing",
@@ -63,9 +80,53 @@ DEFAULTS = {
                          "straight runs with tight corners, 1 = a smooth "
                          "curve through every waypoint."},
     "samples": {"default": 6, "slider": (2, 16), "field": (2, 32),
-                "type": "int", "rebuild": True, "label": "Smoothness",
-                "tip": "Curve points per span. Changing it rebuilds the "
-                       "cable (applied when you release the slider)."},
+                "type": "int", "rebuild": False, "label": "Smoothness",
+                "tip": "How finely the cable is simulated: points per "
+                       "span, in threes. Higher follows contact and bends "
+                       "more closely, and is slower."},
+    "stiffness": {"default": 0.3, "slider": (0.0, 1.0), "field": (0.0, 1.0),
+                  "type": "float", "rebuild": False, "label": "Stiffness",
+                  "tip": "How much the cable resists bending. 0 = a limp "
+                         "rope, 1 = a stiff hose that bends in wide "
+                         "curves."},
+    "drape":   {"default": 1, "slider": (0, 1), "field": (0, 1),
+                "type": "bool", "rebuild": False,
+                "label": "Drape Over Mesh Waypoints",
+                "tip": "When a waypoint is a mesh, the cable rests on top "
+                       "of it like a cable over a support, instead of "
+                       "running through its middle. Locators are always "
+                       "passed through."},
+    "wireCount": {"default": 1, "slider": (1, 24), "field": (1, 64),
+                  "type": "int", "rebuild": True, "label": "Wire Count",
+                  "tip": "How many wires run along the route. Each is "
+                         "simulated on its own. Changing it rebuilds the "
+                         "run (applied when you release the slider)."},
+    "spread":  {"default": 0.6, "slider": (0.0, 3.0), "field": (0.0, 100.0),
+                "type": "float", "rebuild": False, "label": "Spread",
+                "tip": "How far apart the wires meet each anchor, in scene "
+                       "units, across the direction of travel."},
+    "spreadRow": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                  "type": "bool", "rebuild": False,
+                  "label": "Spread In A Row",
+                  "tip": "On: wires sit side by side and stay parallel, "
+                         "like power lines on a crossarm. Off: each wire "
+                         "lands at a random spot at every anchor, so they "
+                         "cross and tangle."},
+    "slackVariation": {"default": 0.4, "slider": (0.0, 1.0),
+                       "field": (0.0, 3.0), "type": "float",
+                       "rebuild": False, "label": "Slack Variation",
+                       "tip": "How much each wire's sag differs from the "
+                              "others. 0 = all hang alike."},
+    "thicknessVariation": {"default": 0.3, "slider": (0.0, 1.0),
+                           "field": (0.0, 1.0), "type": "float",
+                           "rebuild": False,
+                           "label": "Thickness Variation",
+                           "tip": "How much each wire's radius differs "
+                                  "from Radius."},
+    "seed":    {"default": 1, "slider": (0, 100), "field": (0, 99999),
+                "type": "int", "rebuild": False, "label": "Seed",
+                "tip": "Picks a different random arrangement of the "
+                       "wires."},
     "attach":  {"default": 1, "slider": (0, 1), "field": (0, 1),
                 "type": "bool", "rebuild": False,
                 "label": "Attach Ends to Surface",
@@ -74,8 +135,10 @@ DEFAULTS = {
                        "of at its pivot, so cables don't meet inside it."},
     "leadOut": {"default": 0.3, "slider": (0.0, 2.0), "field": (0.0, 100.0),
                 "type": "float", "rebuild": False, "label": "Lead-out Length",
-                "tip": "How far the cable leaves a surface along its normal "
-                       "before it starts to sag or turn."},
+                "tip": "Roughly how far the cable keeps heading out of a "
+                       "surface (between its normal and the next anchor) "
+                       "before it turns and hangs. 0 = it hangs straight "
+                       "from the attach point."},
 }
 
 
