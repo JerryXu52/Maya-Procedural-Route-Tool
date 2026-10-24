@@ -59,8 +59,14 @@ class CableGenerator(BaseGenerator):
                    "thicknessVariation", "seed")),
         ("Ends", ("attach", "leadOut")),
         ("Surface", ("endCaps", "uvRepeat")),
+        ("Hardware", ("clampCount", "clampSize")),
     )
     presets = PRESETS
+    extras = (
+        ("clampSource", "Clamp Mesh",
+         "A mesh to use as the clamp, modelled at the origin around a tube "
+         "of radius 1 lying along +X. Empty: a plain ring."),
+    )
 
     def _check_dependencies(self):
         nodes.ensure_sweep_plugin()
@@ -70,12 +76,84 @@ class CableGenerator(BaseGenerator):
                 "lives in it. Load cableTool.py in the Plug-in Manager.")
 
     def _build_network(self, name, anchors, settings):
+        source = None
+        if settings["clampCount"]:
+            source = self._clamp_source(name)
         for wire in range(settings["wireCount"]):
-            self._build_wire("{0}_w{1:02d}".format(name, wire), wire,
-                             anchors)
+            wire_name = "{0}_w{1:02d}".format(name, wire)
+            curve, radius = self._build_wire(wire_name, wire, anchors)
+            for k in range(settings["clampCount"]):
+                self._build_clamp("{0}_clamp{1:02d}".format(wire_name, k),
+                                  source, curve, radius,
+                                  (k + 1.0) / (settings["clampCount"] + 1))
+
+    def _clamp_source(self, name):
+        """The mesh every clamp instances: the picked Clamp Mesh, or a
+        plain ring made for this run (hidden; its instances show)."""
+        picked = self.read_extras().get("clampSource")
+        if picked:
+            return picked
+        ring, maker = cmds.polyTorus(name=name + "_clampRing", radius=1.4,
+                                     sectionRadius=0.3, axis=(1, 0, 0),
+                                     subdivisionsAxis=16,
+                                     subdivisionsHeight=8)
+        ring = cmds.parent(ring, self.group)[0]
+        for node in [ring, maker] + cmds.listRelatives(ring, shapes=True,
+                                                       fullPath=True):
+            nodes.tag(node, self.cable_id)
+        cmds.setAttr(ring + ".visibility", False)
+        return cmds.ls(ring, long=True)[0]
+
+    def _build_clamp(self, name, source, curve, radius, fraction):
+        """An instance of source at fraction of the curve's length, its +X
+        along the curve, scaled by the wire's radius x Clamp Size."""
+        cable_id = self.cable_id
+        point = nodes.create("pointOnCurveInfo", name + "_at", cable_id)
+        cmds.connectAttr(curve + ".worldSpace[0]", point + ".inputCurve")
+        cmds.setAttr(point + ".turnOnPercentage", True)
+        cmds.setAttr(point + ".parameter", fraction)
+        # A frame from the tangent: X along the cable, Z level, Y up-ish.
+        side = nodes.create("vectorProduct", name + "_side", cable_id)
+        cmds.setAttr(side + ".operation", 2)  # cross product
+        cmds.setAttr(side + ".normalizeOutput", True)
+        cmds.connectAttr(point + ".normalizedTangent", side + ".input1")
+        cmds.setAttr(side + ".input2", 0.0, 1.0, 0.0)
+        lift = nodes.create("vectorProduct", name + "_lift", cable_id)
+        cmds.setAttr(lift + ".operation", 2)
+        cmds.setAttr(lift + ".normalizeOutput", True)
+        cmds.connectAttr(side + ".output", lift + ".input1")
+        cmds.connectAttr(point + ".normalizedTangent", lift + ".input2")
+        frame = nodes.create("fourByFourMatrix", name + "_frame", cable_id)
+        for row, plug in ((0, point + ".normalizedTangent"),
+                          (1, lift + ".output"), (2, side + ".output"),
+                          (3, point + ".position")):
+            for column, axis in enumerate("XYZ"):
+                cmds.connectAttr(plug + axis,
+                                 "{0}.in{1}{2}".format(frame, row, column))
+        parts = nodes.create("decomposeMatrix", name + "_parts", cable_id)
+        cmds.connectAttr(frame + ".output", parts + ".inputMatrix")
+        size = nodes.create("multDL", name + "_size", cable_id)
+        cmds.connectAttr(radius, size + ".input1")
+        cmds.connectAttr(self.group + ".clampSize", size + ".input2")
+
+        clamp = cmds.ls(cmds.instance(source, name=name)[0], long=True)[0]
+        # An instance is made next to its source: already in the group for
+        # the default ring, wherever the artist keeps a picked mesh.
+        if cmds.listRelatives(clamp, parent=True, fullPath=True) != [
+                self.group]:
+            clamp = cmds.ls(cmds.parent(clamp, self.group)[0], long=True)[0]
+        nodes.tag(clamp, cable_id)
+        cmds.setAttr(clamp + ".inheritsTransform", False)
+        cmds.setAttr(clamp + ".visibility", True)
+        cmds.connectAttr(parts + ".outputTranslate", clamp + ".translate")
+        cmds.connectAttr(parts + ".outputRotate", clamp + ".rotate")
+        for axis in "XYZ":
+            cmds.connectAttr(size + ".output", clamp + ".scale" + axis)
+        return clamp
 
     def _build_wire(self, name, wire, anchors):
-        """One wire: its own solver, curve and Sweep Mesh."""
+        """One wire: its own solver, curve and Sweep Mesh. Returns the
+        curve shape and the plug holding the wire's radius."""
         cable_id = self.cable_id
         solve = nodes.create(solver.NODE_NAME, name + "_solver", cable_id)
         cmds.setAttr(solve + ".wireIndex", wire)
@@ -103,6 +181,7 @@ class CableGenerator(BaseGenerator):
                              parent=curve)
         cmds.connectAttr(solve + ".outCurve", shape + ".create")
         self._build_sweep(name, shape, solve + ".outRadius", cable_id)
+        return shape, solve + ".outRadius"
 
     def _build_sweep(self, name, curve_shape, radius, cable_id):
         sweep = nodes.create("sweepMeshCreator", name + "_sweep", cable_id)

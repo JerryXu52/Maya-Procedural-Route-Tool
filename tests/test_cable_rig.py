@@ -504,11 +504,11 @@ def bake_leaves_plain_meshes_and_removes_the_rig():
     from cable_tool import nodes
     a = locator("A", (0, 0, 0))
     b = locator("B", (10, 0, 0))
-    cable = build([a, b], wireCount=3)
+    cable = build([a, b], wireCount=3, clampCount=2)
     cmds.flushUndo()
     baked = cable.bake()
     meshes = cmds.listRelatives(baked, children=True, fullPath=True)
-    assert len(meshes) == 3, meshes
+    assert len(meshes) == 3 + 6, meshes  # wires and their clamps
     for mesh in meshes:
         shape = cmds.listRelatives(mesh, shapes=True, fullPath=True)[0]
         assert not cmds.listConnections(shape + ".inMesh")  # no history
@@ -519,6 +519,72 @@ def bake_leaves_plain_meshes_and_removes_the_rig():
     cmds.undo()  # Ctrl+Z gives the live run back
     cmds.undo()
     assert len(cmds.ls(type="cableToolSolver")) == 3
+
+
+def clamps_of(cable):
+    return sorted(c for c in cmds.ls(cable.group + "|*_clamp*", long=True)
+                  if not c.endswith("_clampRing"))
+
+
+@test
+def clamps_ride_the_cable():
+    # Instructor: hardware instanced along the length, following live.
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], sag=0.2, radius=0.1, clampCount=3, clampSize=1.0)
+    shape, _geo = parts(cable)
+    clamps = clamps_of(cable)
+    assert len(clamps) == 3, clamps
+
+    def check():
+        low = cmds.getAttr(shape + ".minValue")
+        high = cmds.getAttr(shape + ".maxValue")
+        params = [low + (high - low) * k / 800.0 for k in range(801)]
+        for clamp in clamps:
+            pos = cmds.xform(clamp, query=True, worldSpace=True,
+                             translation=True)
+            gap, param = min(
+                (sum((p - q) ** 2 for p, q in zip(pos, cmds.pointOnCurve(
+                    shape, parameter=u, position=True))) ** 0.5, u)
+                for u in params)
+            assert gap < 0.02, (clamp, gap)  # on the cable
+            x_axis = cmds.xform(clamp, query=True, worldSpace=True,
+                                matrix=True)[0:3]
+            length = sum(v * v for v in x_axis) ** 0.5
+            assert abs(length - 0.1) < 1e-3, length  # radius x size
+            tangent = cmds.pointOnCurve(shape, parameter=param,
+                                        normalizedTangent=True)
+            along = sum(v / length * t for v, t in zip(x_axis, tangent))
+            assert along > 0.99, (clamp, along)  # +X along the cable
+
+    check()
+    cmds.xform(b, worldSpace=True, translation=(12, 3, 2))  # live
+    check()
+    cable.update({"clampSize": 2.0})
+    scale = cmds.getAttr(clamps[0] + ".scaleX")
+    assert abs(scale - 0.2) < 1e-6, scale
+
+
+@test
+def custom_clamp_mesh_is_instanced_and_survives_rebuild():
+    bracket = cmds.polyCube(name="bracket", width=0.3, height=3, depth=3)[0]
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    from cable_tool.route import Route
+    from cable_tool.generators import CableGenerator
+    cable = CableGenerator()
+    cable.build(Route(a, b), {"clampCount": 2, "wireCount": 2},
+                extras={"clampSource": bracket})
+    clamps = clamps_of(cable)
+    assert len(clamps) == 4, clamps  # 2 per wire
+    shape = cmds.listRelatives(clamps[0], shapes=True, fullPath=True)[0]
+    assert shape.split("|")[-1] == "bracketShape", shape  # an instance
+    assert not cmds.ls(cable.group + "|*_clampRing")
+    cable.update({"wireCount": 3})  # rebuild keeps the picked mesh
+    assert cable.read_extras()["clampSource"].endswith("bracket")
+    assert len(clamps_of(cable)) == 6
+    cable.delete()
+    assert cmds.objExists(bracket)  # the artist's mesh is never deleted
 
 
 @test

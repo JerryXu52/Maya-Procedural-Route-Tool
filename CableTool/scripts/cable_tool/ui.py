@@ -300,6 +300,7 @@ class CableToolWindow(QtWidgets.QWidget):
         self._dragging = False
         self._deferred = {}   # rebuild settings waiting for a drag to end
         self.fields = {}      # mode -> {setting key: field}
+        self.extra_fields = {}  # mode -> {extra key: AnchorField}
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(6, 0, 6, 6)
@@ -414,8 +415,14 @@ class CableToolWindow(QtWidgets.QWidget):
         if generator.presets:
             layout.addLayout(self._build_preset_row(generator))
         fields = self.fields[generator.mode] = {}
+        pickers = self.extra_fields.setdefault(generator.mode, {})
         for title, keys in generator.sections:
             section = CollapsibleSection(title)
+            if title == "Hardware":
+                for key, label, tip in generator.extras:
+                    pickers[key] = AnchorField(label, tip,
+                                               self.on_pick_extra)
+                    section.body_layout.addWidget(pickers[key])
             for key in keys:
                 field = make_field(key)
                 field.valueChanged.connect(
@@ -508,6 +515,17 @@ class CableToolWindow(QtWidgets.QWidget):
         return {key: field.value()
                 for key, field in self.mode_fields().items()}
 
+    def extras(self):
+        """{key: node name or None} from the current mode's pickers."""
+        pickers = self.extra_fields.get(self.generator_class().mode, {})
+        return {key: field.text() or None for key, field in pickers.items()}
+
+    def _show_extras(self, values):
+        pickers = self.extra_fields.get(self.generator_class().mode, {})
+        for key, field in pickers.items():
+            node = values.get(key)
+            field.set_text(cmds.ls(node)[0] if node else "")
+
     def _show_settings(self, values):
         fields = self.mode_fields()
         for key, value in values.items():
@@ -555,6 +573,16 @@ class CableToolWindow(QtWidgets.QWidget):
             self.waypoint_list.addItem(cmds.ls(waypoint)[0])
 
     # -- route handlers ---------------------------------------------------
+    def on_pick_extra(self, field):
+        # Like on_pick_anchor, but any object will do, and an empty
+        # selection clears the field (back to the default).
+        selection = cmds.ls(selection=True, transforms=True) or []
+        field.set_text(selection[0] if selection else "")
+        self.set_status("Clamp mesh set to {0}; it applies on Generate or "
+                        "Rebuild.".format(selection[0]) if selection else
+                        "Clamp mesh cleared: the default ring is used.",
+                        "ok")
+
     def on_pick_anchor(self, field):
         # Not @guarded: it needs the field argument, which the decorator
         # drops (Qt passes a `checked` flag we don't want).
@@ -701,7 +729,7 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_generate(self):
         route = self.route()
         cable = self.generator_class()()
-        group = cable.build(route, self.settings())
+        group = cable.build(route, self.settings(), extras=self.extras())
         self.current = cable
         self._refresh_current()
         cmds.select(group, replace=True)
@@ -726,7 +754,7 @@ class CableToolWindow(QtWidgets.QWidget):
             raise CableToolError("Nothing to rebuild yet. Generate first, or "
                                  "select a build and use Edit > Load "
                                  "Selected.")
-        group = cable.rebuild(self.route(), self.settings())
+        group = cable.rebuild(self.route(), self.settings(), self.extras())
         self._refresh_current()
         cmds.select(group, replace=True)
         self.set_status("Rebuilt {0}.".format(route_mod.short_name(group)),
@@ -761,6 +789,7 @@ class CableToolWindow(QtWidgets.QWidget):
         # Switch the dropdown to the build's mode, then show its settings.
         self.mode_box.setCurrentIndex(self.mode_box.findData(cable.mode))
         self._show_settings(cable.read_settings())
+        self._show_extras(cable.read_extras())
         self.current = cable
         self._refresh_current()
         self._show_route(cable.read_route())

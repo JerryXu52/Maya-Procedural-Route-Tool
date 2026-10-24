@@ -13,7 +13,7 @@ A Maya 2027 Python/Qt plugin that builds live geometry along a route of picked o
 ---
 
 ## Try it (current build)
-Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)). Version 0.5.0 adds most of week 3: **vertex and face anchors** (ports), **end caps**, **UVs that tile along the length**, **Bake**, and the **drag-and-drop installer** with a shelf icon ([section 15](#15-week-3-ports-surface-bake-install)).
+Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)). Version 0.5.0 adds week 3: **vertex and face anchors** (ports), **end caps**, **UVs that tile along the length**, **clamps along the cable**, **Bake**, and the **drag-and-drop installer** with a shelf icon ([section 15](#15-week-3-ports-surface-bake-install)).
 
 1. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin (set to auto-load) and adds a **Cable Tool** shelf button. (Or, without installing: **Windows › Settings/Preferences › Plug-in Manager › Browse** and pick `CableTool/plug-ins/cableTool.py`.)
 2. Open **Cable Tool › Open Cable Tool** from the main menu bar, the shelf button, or run `cmds.cableTool()`.
@@ -58,7 +58,7 @@ One window, top to bottom:
 | **Wires** (live) | Wire Count (rebuilds by itself on release) · Spread · Spread In A Row · Slack Variation · Thickness Variation · Seed |
 | **Ends** (live) | Attach Ends to Surface · Lead-out Length |
 | **Surface** (live) | End Caps · Texture Repeat per Unit |
-| **Hardware** | Clamp/bracket/connector mesh picker · `Spacing` (every N units) · `End Caps` |
+| **Hardware** | `Clamp Mesh` picker (empty = a plain ring) · `Clamp Count` (rebuilds on release) · `Clamp Size` (live) |
 | **UVs** | `Texture Repeat per Unit` |
 | **Footer** (pinned) | `Generate Cable` · `Rebuild Current` · `Bake` · `Clear All` · colour-coded status box |
 
@@ -89,7 +89,7 @@ One window, top to bottom:
 
 **By Oct 26 — Components, hardware, UVs, polish**
 - ✅ Component attachment along normals, staying attached when the mesh moves or deforms.
-- ⏳ Hardware instanced every N units, following the curve live. ✅ End caps.
+- ✅ Hardware instanced along the cable, following the curve live. ✅ End caps.
 - ✅ Length-wise UVs.
 - ✅ Presets, bake, undo, edge-case error handling, UI polish.
 - ✅ **Packaging:** `.mod` file, drag-and-drop installer, shelf icon, clean unload (closes the window, removes the menu, deregisters the command and node); install tested into a scratch modules folder.
@@ -245,4 +245,4 @@ Tuned offline on a test cable: damping 0.3, gravity 0.003 segments/step, 8 const
 - **Bake** freezes the current build into plain meshes in `<name>_baked_GRP` (no history, untagged so Clear All leaves them alone) and removes the live rig; Ctrl+Z brings it back.
 - **Installer and icon:** see [section 9](#9-plugin--packaging).
 - **Demo:** the cyberpunk alley's bundles now plug into wall faces.
-- **Still to do:** clamps / brackets instanced along the cable.
+- **Clamps:** `Clamp Count` clamps per wire, evenly spaced by length. Each is an *instance* of the `Clamp Mesh` (any mesh, modelled at the origin around a tube of radius 1 lying along +X) or, if none is picked, of a plain ring made for the run. A `pointOnCurveInfo` (by percentage) gives each clamp its position and tangent; two cross products and a `fourByFourMatrix` turn the tangent into a frame (X along the cable), so clamps ride the wire live; scale = the wire's radius × `Clamp Size`. The picked mesh is stored on the group (generators can declare such node inputs as `extras`), so Rebuild keeps it, and the artist's mesh is never deleted. Bake includes the clamps. The demo alley has a clamped service pipe.

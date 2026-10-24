@@ -128,6 +128,14 @@ DEFAULTS = {
                 "type": "int", "rebuild": False, "label": "Seed",
                 "tip": "Picks a different random arrangement of the "
                        "wires."},
+    "clampCount": {"default": 0, "slider": (0, 20), "field": (0, 200),
+                   "type": "int", "rebuild": True, "label": "Clamp Count",
+                   "tip": "Clamps spaced evenly along each wire, riding it "
+                          "as it moves. Changing the count rebuilds the "
+                          "run (applied when you release the slider)."},
+    "clampSize": {"default": 1.0, "slider": (0.2, 4.0), "field": (0.01, 50.0),
+                  "type": "float", "rebuild": False, "label": "Clamp Size",
+                  "tip": "Clamp scale, relative to the wire's radius."},
     "endCaps": {"default": 1, "slider": (0, 1), "field": (0, 1),
                 "type": "bool", "rebuild": False, "label": "End Caps",
                 "tip": "Close the tube's ends."},

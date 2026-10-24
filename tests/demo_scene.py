@@ -111,6 +111,11 @@ def cyberpunk_alley(x0=12.0):
                      _face_near(right, (wall_b, 10.5, 1.5))],
                     "Cyberpunk Tangle", wireCount=8, seed=42, sag=0.1)
     cables.append(draped)
+    # A service pipe across the alley, held by ring clamps.
+    cables.append(_build([_face_near(left, (wall_a, 7.0, -5.0)),
+                          _face_near(right, (wall_b, 7.5, -5.0))],
+                         "Single Pipe", radius=0.2, clampCount=3,
+                         clampSize=1.1, sag=0.03))
     return cables
 
 

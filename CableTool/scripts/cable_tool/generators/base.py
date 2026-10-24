@@ -28,6 +28,10 @@ class BaseGenerator(object):
     summary = ""           # one line for the mode's panel / tooltip
     sections = ()          # (("Shape", ("radius", ...)), ...) for the UI
     presets = ()           # (("Name", {setting: value}), ...)
+    # Inputs that are scene nodes, not numbers, e.g. a custom clamp mesh:
+    # (("key", "Label", "tooltip"), ...). Stored on the group as message
+    # connections so Rebuild keeps them.
+    extras = ()
 
     def __init__(self, group=None):
         self.group = group
@@ -98,7 +102,19 @@ class BaseGenerator(object):
         return route_mod.Route(anchors[0], anchors[-1], anchors[1:-1])
 
     # -- interface --------------------------------------------------------
-    def build(self, route, settings, name=None):
+    def read_extras(self):
+        """{key: node or None} for this build's extras."""
+        values = {}
+        for key, _label, _tip in self.extras:
+            plug = self.group + "." + key
+            source = (cmds.listConnections(plug, source=True,
+                                           destination=False)
+                      if cmds.attributeQuery(key, node=self.group,
+                                             exists=True) else None)
+            values[key] = cmds.ls(source[0], long=True)[0] if source else None
+        return values
+
+    def build(self, route, settings, name=None, extras=None):
         """Create the live setup for a route. Returns the group node."""
         if not self.available:
             raise CableToolError("{0} mode isn't built yet; switch the Mode "
@@ -118,6 +134,7 @@ class BaseGenerator(object):
                          type="string", lock=True)
             self._add_setting_attrs(settings)
             self._record_anchors(anchors)
+            self._record_extras(extras or {})
             self._build_network(name, anchors, settings)
             for xform in cmds.listRelatives(self.group, children=True,
                                             fullPath=True) or []:
@@ -136,25 +153,26 @@ class BaseGenerator(object):
         if structural:
             route = self.read_route()
             merged = dict(self.read_settings(), **changed)
-            self.rebuild(route, merged)
+            self.rebuild(route, merged, self.read_extras())
             return structural
         for key, value in changed.items():
             cmds.setAttr(self.group + "." + key, value)
         return []
 
-    def rebuild(self, route, settings):
+    def rebuild(self, route, settings, extras=None):
         """Rebuild in place, keeping the build's name."""
         name = self.name
         with nodes.undo_chunk("CableTool_Rebuild"):
             self.delete()
-            return self.build(route, settings, name=name)
+            return self.build(route, settings, name=name, extras=extras)
 
     def bake(self):
         """Freeze the build into plain meshes with no history, then remove
         the live build. Returns the group holding the baked meshes."""
         meshes = [geo for geo in cmds.listRelatives(
             self.group, children=True, fullPath=True, type="transform") or []
-            if geo.endswith("_geo")]
+            if geo.endswith("_geo") or "_clamp" in geo.split("|")[-1]
+            and not geo.endswith("_clampRing")]
         if not meshes:
             raise CableToolError("{0} has no geometry to bake.".format(
                 route_mod.short_name(self.group)))
@@ -217,6 +235,18 @@ class BaseGenerator(object):
                 cmds.setAttr(plug, keyable=False, channelBox=False)
             else:
                 cmds.setAttr(plug, keyable=True)
+
+    def _record_extras(self, extras):
+        for key, _label, _tip in self.extras:
+            cmds.addAttr(self.group, longName=key, attributeType="message")
+            node = extras.get(key)
+            if node:
+                if not cmds.objExists(node):
+                    raise CableToolError(
+                        "'{0}' is not in the scene; pick it again.".format(
+                            node))
+                cmds.connectAttr(node + ".message",
+                                 self.group + "." + key)
 
     def _record_anchors(self, anchors):
         cmds.addAttr(self.group, longName=ANCHORS_ATTR,
