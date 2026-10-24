@@ -99,3 +99,13 @@ def anchor_driver(anchor, name, cable_id):
     driver = nodes.create("decomposeMatrix", name, cable_id)
     cmds.connectAttr(anchor + ".worldMatrix[0]", driver + ".inputMatrix")
     return driver + ".outputTranslate"
+
+
+def mesh_shape(anchor):
+    """The anchor's own visible mesh shape, or None for locators, joints,
+    groups and other non-mesh anchors."""
+    for shape in cmds.listRelatives(anchor, shapes=True, fullPath=True,
+                                    noIntermediate=True) or []:
+        if cmds.objectType(shape) == "mesh":
+            return shape
+    return None

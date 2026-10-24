@@ -6,6 +6,7 @@ Each test starts from a new scene. Exits non-zero if anything fails.
 The window is tested separately in test_ui.py.
 """
 
+import math
 import os
 import sys
 import traceback
@@ -37,6 +38,9 @@ def locator(name, pos):
 
 def cv(shape, index):
     return cmds.pointPosition("{0}.cv[{1}]".format(shape, index), world=True)
+
+
+LEAD_SAMPLES = 2  # config.LEAD_SAMPLES, imported after the plugin loads
 
 
 def build(anchors, **settings):
@@ -130,8 +134,26 @@ def shape_settings_drive_sweep_live():
     cmds.setAttr(cable.group + ".taper", 0.0)
     sweep = cmds.listConnections(cable.group + ".taper", destination=True)[0]
     assert cmds.getAttr(sweep + ".taper") == 0.0
+
+
+@test
+def twist_is_degrees_not_turns():
+    # Peer run: Twist wrung the tube into pinched segments, because the
+    # degrees from the UI went straight into Sweep Mesh, which counts
+    # whole turns (90 became 90 full turns).
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], sag=0.0, radius=0.5)
+    _shape, geo = parts(cable)
+    sweep = cmds.ls(cmds.listHistory(geo), type="sweepMeshCreator")[0]
     cable.update({"twist": 90.0})
-    assert abs(cmds.getAttr(sweep + ".twist") - 90.0) < 1e-6
+    assert abs(cmds.getAttr(sweep + ".twist") - 0.25) < 1e-6, \
+        cmds.getAttr(sweep + ".twist")
+    cable.update({"twist": 360.0})
+    assert abs(cmds.getAttr(sweep + ".twist") - 1.0) < 1e-6
+    # A round tube stays round: no pinched, narrowed sections.
+    box = bbox(geo)
+    assert box[4] - box[1] > 0.9 and box[5] - box[2] > 0.9, box
 
 
 @test
@@ -203,11 +225,86 @@ def rebuild_applies_smoothness_and_keeps_name():
     b = locator("B", (10, 0, 0))
     cable = build([a, b], samples=4)
     name = cable.group.split("|")[-1]
+    # Peer run: Smoothness needed a manual Rebuild. update() now rebuilds.
     assert cable.update({"samples": 10}) == ["samples"]
-    cable.rebuild(cable.read_route(), dict(cable.read_settings(), samples=10))
+    assert cable.exists()
     shape, _geo = parts(cable)
     assert cable.group.split("|")[-1] == name
     assert cmds.getAttr(shape + ".spans") + 3 == 12  # 2 anchors + 10
+
+
+@test
+def waypoints_turn_smoothly():
+    # Peer run: waypoints made sharp, tight corners.
+    a = locator("A", (0, 0, 0))
+    w = locator("W", (5, 0, 5))
+    b = locator("B", (10, 0, 0))
+
+    def sharpest_turn(smoothing):
+        cable = build([a, w, b], sag=0.3, smoothing=smoothing)
+        shape, _geo = parts(cable)
+        low = cmds.getAttr(shape + ".minValue")
+        high = cmds.getAttr(shape + ".maxValue")
+        steps = 200
+        tangents = [cmds.pointOnCurve(shape, parameter=low + (high - low)
+                                      * k / steps, normalizedTangent=True)
+                    for k in range(steps + 1)]
+        cable.delete()
+        return max(math.degrees(math.acos(max(-1.0, min(1.0, sum(
+            p * q for p, q in zip(u, v))))))
+            for u, v in zip(tangents, tangents[1:]))
+
+    smooth, sharp = sharpest_turn(1.0), sharpest_turn(0.0)
+    assert smooth < 6.0, smooth
+    assert sharp > smooth * 2, (sharp, smooth)
+
+
+@test
+def mesh_ends_sit_on_the_surface_and_lead_out():
+    # Peer run: cables ended at each object's pivot, inside it, so several
+    # cables met at one point and crossed there.
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    b = locator("B", (10, 0, 0))
+    cable = build([cube, b], sag=0.0, leadOut=0.5)
+    shape, _geo = parts(cable)
+    assert close(cv(shape, 0), (1, 0, 0)), cv(shape, 0)
+    lead = 1 + LEAD_SAMPLES  # start, lead span samples, then the lead point
+    assert close(cv(shape, lead), (1.5, 0, 0)), cv(shape, lead)
+
+    cmds.xform(cube, worldSpace=True, translation=(0, 5, 0))
+    assert close(cv(shape, 0), (1, 4, 0)), cv(shape, 0)
+    cmds.setAttr(cube + ".rotateZ", 90)  # normals follow the mesh live
+    assert close(cv(shape, 0), (1, 4, 0)), cv(shape, 0)
+
+    cable.update({"attach": 0})
+    assert close(cv(shape, 0), (0, 5, 0)), cv(shape, 0)
+    assert close(cv(shape, lead), (0, 5, 0)), cv(shape, lead)
+
+
+@test
+def modes_share_one_interface():
+    from cable_tool import generators
+    from cable_tool.config import CableToolError
+    from cable_tool.route import Route
+    modes = [g.mode for g in generators.GENERATORS]
+    assert modes == ["cable", "fence", "road"], modes
+    assert [g.available for g in generators.GENERATORS] == [True, False,
+                                                             False]
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    for mode in ("fence", "road"):
+        try:
+            generators.get(mode)().build(Route(a, b), {})
+        except CableToolError:
+            continue
+        raise AssertionError(mode + " mode built something")
+    assert not cmds.ls("*_GRP", type="transform") or \
+        cmds.ls("*_GRP", type="transform") == ["CableTool_GRP"]
+
+    cable = build([a, b])
+    found = generators.from_node(parts(cable)[1])
+    assert type(found).__name__ == "CableGenerator"
+    assert found.cable_id == cable.cable_id
 
 
 @test

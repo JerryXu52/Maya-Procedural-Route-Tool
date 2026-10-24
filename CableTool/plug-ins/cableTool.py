@@ -14,7 +14,7 @@ import maya.api.OpenMaya as om
 import maya.cmds as cmds
 
 VENDOR = "JerryXu52"
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 MENU_NAME = "CableToolMenu"
 
 

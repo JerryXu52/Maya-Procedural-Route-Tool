@@ -35,6 +35,7 @@ def locator(name, pos):
 def run():
     cmds.loadPlugin(os.path.abspath(PLUGIN))
     from cable_tool import ui
+    from cable_tool.config import DEFAULTS
     cmds.selectPref(trackSelectionOrder=True)
 
     a = locator("A", (0, 0, 0))
@@ -48,6 +49,13 @@ def run():
     assert win is not None and win.isVisible()
     assert ui.show() is win  # a second call raises the same window
 
+    # Only Cable / Pipe can be picked; Fence and Road are listed greyed out.
+    items = [win.mode_box.model().item(i)
+             for i in range(win.mode_box.count())]
+    assert [item.isEnabled() for item in items] == [True, False, False]
+    assert win.generate_button.text() == "Generate Cable"
+    assert win.mode_stack.count() == 3
+
     win.on_use_selection_order()
     assert win.start_field.text() == "A" and win.end_field.text() == "B"
     assert win.waypoint_list.count() == 1
@@ -58,24 +66,47 @@ def run():
     assert status.startswith("[OK]"), status
 
     # Live edit through the UI, as a slider drag in one undo chunk.
-    win.fields["radius"].dragStarted.emit()
-    win.fields["radius"].field.setValue(0.4)
-    win.fields["radius"].dragFinished.emit()
+    fields = win.fields["cable"]
+    fields["radius"].dragStarted.emit()
+    fields["radius"].field.setValue(0.4)
+    fields["radius"].dragFinished.emit()
     assert abs(cmds.getAttr(win.current.group + ".radius") - 0.4) < 1e-6
 
-    # Smoothness is build-time: the UI says so instead of failing.
-    win.fields["samples"].field.setValue(10)
-    assert "Rebuild" in win.status.toPlainText()
+    # Smoothness rebuilds the cable by itself (peer run: it didn't).
+    fields["samples"].field.setValue(8)
+    assert "rebuilt" in win.status.toPlainText(), win.status.toPlainText()
+    assert cmds.getAttr(win.current.group + ".samples") == 8
+    # During a drag it waits for the release.
+    fields["samples"].dragStarted.emit()
+    fields["samples"].field.setValue(10)
+    assert cmds.getAttr(win.current.group + ".samples") == 8
+    fields["samples"].dragFinished.emit()
+    assert cmds.getAttr(win.current.group + ".samples") == 10
+    assert abs(cmds.getAttr(win.current.group + ".radius") - 0.4) < 1e-6
+
+    # On/off settings use a checkbox.
+    fields["attach"].box.setChecked(False)
+    assert cmds.getAttr(win.current.group + ".attach") is False
+
     win.on_rebuild()
     assert win.status.toPlainText().startswith("[OK]")
 
     # Load Selected from the mesh restores settings and route.
     geo = cmds.ls(win.current.group + "|*_geo")[0]
-    win.on_reset()
+    for field in fields.values():  # scramble the UI only (no signals)
+        field.set_value(DEFAULTS[field.key]["field"][0])
+    win.waypoint_list.clear()
     cmds.select(geo)
     win.on_load_selected()
-    assert win.fields["samples"].value() == 10  # read back from the cable
+    assert fields["samples"].value() == 10  # read back from the cable
+    assert fields["attach"].value() == 0
     assert win.waypoint_list.count() == 1
+
+    # Reset applies the defaults to the cable, rebuilding for Smoothness.
+    win.on_reset()
+    assert cmds.getAttr(win.current.group + ".samples") == 6
+    assert cmds.getAttr(win.current.group + ".attach") is True
+    geo = cmds.ls(win.current.group + "|*_geo")[0]
 
     # A bad route is a warning in the status box, not an exception.
     win.start_field.set_text("")

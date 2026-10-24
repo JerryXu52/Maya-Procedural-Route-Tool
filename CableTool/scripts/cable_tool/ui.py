@@ -4,8 +4,14 @@ Layout: menu bar, mode dropdown, then a scrolling body (Route, then the
 current mode's panel) above a pinned footer holding the action buttons
 and the status box, so they never scroll out of reach.
 
-The sliders edit the *current cable* live: the last one generated, or
-the one picked with Edit > Load Selected Cable.
+The Mode dropdown and the settings panels are built from the generator
+registry (cable_tool.generators): each mode gets its own panel, and
+modes that are not built yet are listed greyed out.
+
+The sliders edit the *current build* live: the last one generated, or
+the one picked with Edit > Load Selected. Settings that change the
+node network's structure (Smoothness) rebuild it automatically, once a
+slider drag is released.
 """
 
 import traceback
@@ -20,10 +26,8 @@ except ImportError:  # Maya 2024 and earlier
     from PySide2 import QtCore, QtGui, QtWidgets
     from shiboken2 import wrapInstance
 
-from cable_tool import nodes, route as route_mod
-from cable_tool.config import (DEFAULTS, TOOL_NAME, VERSION, CableToolError,
-                               default_settings)
-from cable_tool.generators import CableGenerator
+from cable_tool import generators, nodes, route as route_mod
+from cable_tool.config import DEFAULTS, TOOL_NAME, VERSION, CableToolError
 
 WINDOW_OBJECT = "CableToolWindow"
 LOG_PREFIX = "[CableTool] "
@@ -32,10 +36,6 @@ STATUS_COLOURS = {"info": "#3a3a3a", "ok": "#2a4d31",
                   "warning": "#5c4a1c", "error": "#5c2b29"}
 STATUS_TAGS = {"info": "[INFO]", "ok": "[OK]", "warning": "[WARNING]",
                "error": "[ERROR]"}
-
-MODES = (("Cable / Pipe", "cable", True),
-         ("Fence (coming later)", "fence", False),
-         ("Road (coming later)", "road", False))
 
 _window = None
 
@@ -130,7 +130,7 @@ class SliderField(QtWidgets.QWidget):
         super(SliderField, self).__init__(parent)
         spec = DEFAULTS[key]
         self.key = key
-        self.is_int = spec["int"]
+        self.is_int = spec["type"] == "int"
         self.soft_low, self.soft_high = spec["slider"]
 
         label = QtWidgets.QLabel(spec["label"])
@@ -202,6 +202,42 @@ class SliderField(QtWidgets.QWidget):
         self.valueChanged.emit(value)
 
 
+class CheckField(QtWidgets.QWidget):
+    """A checkbox with the same signals as SliderField, for on/off
+    settings."""
+
+    valueChanged = QtCore.Signal(object)
+    dragStarted = QtCore.Signal()
+    dragFinished = QtCore.Signal()
+
+    def __init__(self, key, parent=None):
+        super(CheckField, self).__init__(parent)
+        spec = DEFAULTS[key]
+        self.key = key
+        self.box = QtWidgets.QCheckBox(spec["label"])
+        self.box.setToolTip(spec["tip"])
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.box)
+        self.box.toggled.connect(
+            lambda checked: self.valueChanged.emit(int(checked)))
+        self.set_value(spec["default"])
+
+    def value(self):
+        return int(self.box.isChecked())
+
+    def set_value(self, value):
+        self.box.blockSignals(True)
+        self.box.setChecked(bool(value))
+        self.box.blockSignals(False)
+
+
+def make_field(key):
+    if DEFAULTS[key]["type"] == "bool":
+        return CheckField(key)
+    return SliderField(key)
+
+
 class AnchorField(QtWidgets.QWidget):
     """A read-only anchor name with a Get Selected button."""
 
@@ -258,9 +294,10 @@ class CableToolWindow(QtWidgets.QWidget):
         self.resize(460, 640)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
 
-        self.current = None   # CableGenerator being edited
+        self.current = None   # generator of the build being edited
         self._dragging = False
-        self.fields = {}
+        self._deferred = {}   # rebuild settings waiting for a drag to end
+        self.fields = {}      # mode -> {setting key: field}
 
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(6, 0, 6, 6)
@@ -275,13 +312,16 @@ class CableToolWindow(QtWidgets.QWidget):
         body_layout.setContentsMargins(0, 0, 0, 0)
         body_layout.addWidget(self._build_route_section())
         self.mode_stack = QtWidgets.QStackedWidget()
-        self.mode_stack.addWidget(self._build_cable_panel())
+        for generator in generators.GENERATORS:
+            self.mode_stack.addWidget(self._build_mode_panel(generator))
         body_layout.addWidget(self.mode_stack)
         body_layout.addStretch(1)
         scroll.setWidget(body)
         root.addWidget(scroll, 1)
 
         root.addWidget(self._build_footer())
+        self.mode_box.currentIndexChanged.connect(self.on_mode_changed)
+        self.on_mode_changed(self.mode_box.currentIndex())
         self.set_status("Ready. Pick a Start and End (or select them in "
                         "order and press Use Selection Order), then "
                         "Generate.")
@@ -292,9 +332,9 @@ class CableToolWindow(QtWidgets.QWidget):
         edit = bar.addMenu("Edit")
         edit.addAction("Reset Settings", self.on_reset)
         edit.addSeparator()
-        edit.addAction("Load Selected Cable", self.on_load_selected)
-        edit.addAction("Delete Selected Cable", self.on_delete_selected)
-        edit.addAction("Clear All Cables", self.on_clear_all)
+        edit.addAction("Load Selected", self.on_load_selected)
+        edit.addAction("Delete Selected", self.on_delete_selected)
+        edit.addAction("Clear All", self.on_clear_all)
         help_menu = bar.addMenu("Help")
         help_menu.addAction("About", about)
         return bar
@@ -303,12 +343,16 @@ class CableToolWindow(QtWidgets.QWidget):
         row = QtWidgets.QHBoxLayout()
         row.addWidget(QtWidgets.QLabel("Mode"))
         self.mode_box = QtWidgets.QComboBox()
-        for label, _mode, enabled in MODES:
-            self.mode_box.addItem(label)
+        for generator in generators.GENERATORS:
+            label = generator.label
+            if not generator.available:
+                label += " (coming later)"
+            self.mode_box.addItem(label, generator.mode)
             item = self.mode_box.model().item(self.mode_box.count() - 1)
-            item.setEnabled(enabled)
-        self.mode_box.setToolTip("What to build along the route. Fence and "
-                                 "Road modes are planned stretch goals.")
+            item.setEnabled(generator.available)
+            item.setToolTip(generator.summary)
+        self.mode_box.setToolTip("What to build along the route. Greyed-out "
+                                 "modes are planned and not built yet.")
         row.addWidget(self.mode_box, 1)
         return row
 
@@ -351,20 +395,32 @@ class CableToolWindow(QtWidgets.QWidget):
         layout.addWidget(fill)
         return section
 
-    def _build_cable_panel(self):
+    def _build_mode_panel(self, generator):
+        """One collapsible section per entry in generator.sections, or a
+        short note for a mode that isn't built yet."""
         panel = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
-        section = CollapsibleSection("Shape")
-        for key in ("radius", "sides", "twist", "taper", "sag", "samples"):
-            field = SliderField(key)
-            field.valueChanged.connect(
-                lambda value, k=key: self.on_setting_changed(k, value))
-            field.dragStarted.connect(self.on_drag_started)
-            field.dragFinished.connect(self.on_drag_finished)
-            self.fields[key] = field
-            section.body_layout.addWidget(field)
-        layout.addWidget(section)
+        if not generator.available:
+            note = QtWidgets.QLabel("<b>{0}</b> is not built yet.<br>{1}"
+                                    .format(generator.label,
+                                            generator.summary))
+            note.setWordWrap(True)
+            layout.addWidget(note)
+            return panel
+
+        fields = self.fields[generator.mode] = {}
+        for title, keys in generator.sections:
+            section = CollapsibleSection(title)
+            for key in keys:
+                field = make_field(key)
+                field.valueChanged.connect(
+                    lambda value, k=key: self.on_setting_changed(k, value))
+                field.dragStarted.connect(self.on_drag_started)
+                field.dragFinished.connect(self.on_drag_finished)
+                fields[key] = field
+                section.body_layout.addWidget(field)
+            layout.addWidget(section)
         return panel
 
     def _build_footer(self):
@@ -376,15 +432,14 @@ class CableToolWindow(QtWidgets.QWidget):
         layout.addWidget(self.current_label)
 
         row = QtWidgets.QHBoxLayout()
-        generate = QtWidgets.QPushButton("Generate Cable")
+        self.generate_button = generate = QtWidgets.QPushButton("Generate")
         generate.setMinimumHeight(34)
         generate.setStyleSheet("background-color: #4d8a5c; color: white;")
-        generate.setToolTip("Build a new live cable along the route.")
         generate.clicked.connect(self.on_generate)
         self.rebuild_button = QtWidgets.QPushButton("Rebuild Current")
         self.rebuild_button.setMinimumHeight(34)
-        self.rebuild_button.setToolTip("Rebuild the current cable with this "
-                                       "route and Smoothness.")
+        self.rebuild_button.setToolTip("Rebuild the current build along the "
+                                       "route shown above.")
         self.rebuild_button.clicked.connect(self.on_rebuild)
         clear = QtWidgets.QPushButton("Clear All")
         clear.setMinimumHeight(34)
@@ -413,8 +468,22 @@ class CableToolWindow(QtWidgets.QWidget):
             "QPlainTextEdit {{ background-color: {0}; color: #eeeeee; }}"
             .format(STATUS_COLOURS[level]))
 
+    def generator_class(self):
+        """The generator for the mode picked in the dropdown."""
+        return generators.get(self.mode_box.currentData())
+
+    def mode_fields(self):
+        return self.fields.get(self.generator_class().mode, {})
+
     def settings(self):
-        return {key: field.value() for key, field in self.fields.items()}
+        return {key: field.value()
+                for key, field in self.mode_fields().items()}
+
+    def _show_settings(self, values):
+        fields = self.mode_fields()
+        for key, value in values.items():
+            if key in fields:
+                fields[key].set_value(value)
 
     def route(self):
         waypoints = [self.waypoint_list.item(i).text()
@@ -434,7 +503,7 @@ class CableToolWindow(QtWidgets.QWidget):
                                        "it live)".format(
                                            route_mod.short_name(cable.group)))
         else:
-            self.current_label.setText("Editing: <i>no cable yet</i>")
+            self.current_label.setText("Editing: <i>nothing yet</i>")
         self.rebuild_button.setEnabled(cable is not None)
 
     def _select_anchors(self):
@@ -508,49 +577,85 @@ class CableToolWindow(QtWidgets.QWidget):
             self._dragging = True
 
     def on_drag_finished(self):
-        if self._dragging:
+        if not self._dragging:
+            return
+        try:
+            # Rebuild settings wait for the release: rebuilding on every
+            # tick of a drag would be slow and fill the undo queue.
+            deferred, self._deferred = self._deferred, {}
+            if deferred:
+                self._apply_settings(deferred)
+        finally:
             cmds.undoInfo(closeChunk=True)
             self._dragging = False
 
     def on_setting_changed(self, key, value):
+        if self._current_cable() is None:
+            return
+        if self._dragging and DEFAULTS[key]["rebuild"]:
+            self._deferred[key] = value
+            return
+        self._apply_settings({key: value})
+
+    def _apply_settings(self, values):
         cable = self._current_cable()
         if cable is None:
             return
         try:
-            pending = cable.update({key: value})
-        except Exception as err:
-            self.set_status("Could not update {0}: {1}".format(key, err),
-                            "error")
+            rebuilt = cable.update(values)
+        except CableToolError as err:
+            self.set_status(str(err), "warning")
             return
-        if pending:
-            self.set_status("Smoothness changes the curve's point count; "
-                            "press Rebuild Current to apply it.", "info")
+        except Exception as err:
+            print(LOG_PREFIX + traceback.format_exc())
+            self.set_status("Could not update {0}: {1}".format(
+                ", ".join(values), err), "error")
+            return
+        if rebuilt:
+            self._refresh_current()
+            self.set_status("{0} changes the curve's point count, so {1} was "
+                            "rebuilt with it.".format(
+                                ", ".join(DEFAULTS[k]["label"]
+                                          for k in rebuilt),
+                                route_mod.short_name(cable.group)), "ok")
+
+    @guarded
+    def on_mode_changed(self, index=None):
+        generator = self.generator_class()
+        self.mode_stack.setCurrentIndex(self.mode_box.currentIndex())
+        noun = generator.noun.capitalize()
+        self.generate_button.setText("Generate " + noun)
+        self.generate_button.setEnabled(generator.available)
+        self.generate_button.setToolTip("Build a new live {0} along the "
+                                        "route.".format(generator.noun))
 
     @guarded
     def on_reset(self):
-        with nodes.undo_chunk("CableTool_Reset"):
-            for key, value in default_settings().items():
-                self.fields[key].set_value(value)
-            cable = self._current_cable()
-            if cable:
-                cable.update(self.settings())
-        self.set_status("Settings reset to defaults{0}.".format(
-            " and applied to the current cable" if self.current else ""))
+        defaults = self.generator_class().default_settings()
+        self._show_settings(defaults)
+        cable = self._current_cable()
+        applied = ""
+        if cable and cable.mode == self.generator_class().mode:
+            with nodes.undo_chunk("CableTool_Reset"):
+                cable.update(defaults)
+            self._refresh_current()
+            applied = " and applied to " + route_mod.short_name(cable.group)
+        self.set_status("Settings reset to defaults{0}.".format(applied))
 
     # -- build handlers ---------------------------------------------------
     @guarded
     def on_generate(self):
         route = self.route()
-        cable = CableGenerator()
+        cable = self.generator_class()()
         group = cable.build(route, self.settings())
         self.current = cable
         self._refresh_current()
         cmds.select(group, replace=True)
 
         message = ("Built {0} through {1} anchor(s). Move any anchor and the "
-                   "cable follows; its settings are also on the group in the "
+                   "{2} follows; its settings are also on the group in the "
                    "Channel Box.").format(route_mod.short_name(group),
-                                          len(route.anchors))
+                                          len(route.anchors), cable.noun)
         overlapping = route.overlapping_spans()
         if overlapping:
             self.set_status(message + " Note: {0} span(s) have both anchors "
@@ -564,8 +669,9 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_rebuild(self):
         cable = self._current_cable()
         if cable is None:
-            raise CableToolError("No current cable. Generate one, or select "
-                                 "a cable and use Edit > Load Selected Cable.")
+            raise CableToolError("Nothing to rebuild yet. Generate first, or "
+                                 "select a build and use Edit > Load "
+                                 "Selected.")
         group = cable.rebuild(self.route(), self.settings())
         self._refresh_current()
         cmds.select(group, replace=True)
@@ -577,14 +683,15 @@ class CableToolWindow(QtWidgets.QWidget):
         selection = cmds.ls(selection=True, long=True) or []
         cable = None
         for node in selection:
-            cable = CableGenerator.from_node(node)
+            cable = generators.from_node(node)
             if cable:
                 break
         if cable is None:
-            raise CableToolError("Select a cable (its mesh, curve or group) "
-                                 "first.")
-        for key, value in cable.read_settings().items():
-            self.fields[key].set_value(value)
+            raise CableToolError("Select something the tool built (its "
+                                 "mesh, curve or group) first.")
+        # Switch the dropdown to the build's mode, then show its settings.
+        self.mode_box.setCurrentIndex(self.mode_box.findData(cable.mode))
+        self._show_settings(cable.read_settings())
         self.current = cable
         self._refresh_current()
         self._show_route(cable.read_route())
@@ -596,22 +703,22 @@ class CableToolWindow(QtWidgets.QWidget):
         selection = cmds.ls(selection=True, long=True) or []
         cables = {}
         for node in selection:
-            cable = CableGenerator.from_node(node)
+            cable = generators.from_node(node)
             if cable:
                 cables[cable.cable_id] = cable
         if not cables:
-            raise CableToolError("Select a cable (its mesh, curve or group) "
-                                 "first.")
+            raise CableToolError("Select something the tool built (its "
+                                 "mesh, curve or group) first.")
         with nodes.undo_chunk("CableTool_Delete"):
             for cable in cables.values():
                 cable.delete()
         self._refresh_current()
-        self.set_status("Deleted {0} cable(s).".format(len(cables)), "ok")
+        self.set_status("Deleted {0} build(s).".format(len(cables)), "ok")
 
     @guarded
     def on_clear_all(self):
         answer = QtWidgets.QMessageBox.question(
-            self, TOOL_NAME, "Delete every cable this tool created? "
+            self, TOOL_NAME, "Delete everything this tool created? "
                              "(Ctrl+Z undoes it.)")
         if answer != QtWidgets.QMessageBox.StandardButton.Yes:
             return
