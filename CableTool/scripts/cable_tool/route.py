@@ -2,17 +2,24 @@
 
 Every mode (cable now, fence and road later) builds on a Route, so this
 module knows nothing about tubes.
+
+An anchor is a transform (an object, locator or joint) or a single mesh
+component on one: "pCube1.vtx[12]" (a vertex) or "pCube1.f[3]" (a face).
 """
+
+import re
 
 import maya.cmds as cmds
 
 from cable_tool.config import CableToolError, EPSILON
-from cable_tool import nodes
+
+# Component kinds the tool can anchor to, and the code the solver uses.
+COMPONENT_KINDS = {"vtx": 1, "f": 2}
+_COMPONENT = re.compile(r"^(?P<node>[^.]+)\.(?P<kind>vtx|f)\[(?P<index>\d+)\]$")
 
 
 class Route(object):
-    """Start, optional waypoints, end. Anchors are transforms (objects,
-    locators, joints); vertex/face anchors arrive in week 3."""
+    """Start, optional waypoints, end."""
 
     def __init__(self, start=None, end=None, waypoints=None):
         self.start = start
@@ -30,19 +37,7 @@ class Route(object):
             raise CableToolError("Set both a Start and an End anchor "
                                  "(select an object, then Get Selected).")
 
-        resolved = []
-        for anchor in self.anchors:
-            matches = cmds.ls(anchor, long=True, type="transform")
-            if not matches:
-                raise CableToolError(
-                    "'{0}' is not an object or locator in the scene. Pick "
-                    "it again with Get Selected.".format(anchor))
-            if len(matches) > 1:
-                raise CableToolError(
-                    "'{0}' matches more than one object; rename one so the "
-                    "name is unique.".format(anchor))
-            resolved.append(matches[0])
-
+        resolved = [_resolve(anchor) for anchor in self.anchors]
         for a, b in zip(resolved, resolved[1:]):
             if a == b:
                 raise CableToolError(
@@ -58,30 +53,88 @@ class Route(object):
                    if distance(p, q) < EPSILON)
 
 
+def _resolve(anchor):
+    """The anchor as a long name, or a CableToolError saying what's wrong."""
+    node, kind, index = split(anchor)
+    matches = cmds.ls(node, long=True, type="transform")
+    if not matches:
+        raise CableToolError(
+            "'{0}' is not an object or locator in the scene. Pick it again "
+            "with Get Selected.".format(anchor))
+    if len(matches) > 1:
+        raise CableToolError(
+            "'{0}' matches more than one object; rename one so the name is "
+            "unique.".format(node))
+    if kind is None:
+        return matches[0]
+    mesh = mesh_shape(matches[0])
+    if mesh is None:
+        raise CableToolError(
+            "'{0}' is a {1} anchor, but '{2}' has no mesh.".format(
+                anchor, "vertex" if kind == "vtx" else "face",
+                short_name(matches[0])))
+    count = (cmds.polyEvaluate(mesh, vertex=True) if kind == "vtx"
+             else cmds.polyEvaluate(mesh, face=True))
+    if index >= count:
+        raise CableToolError(
+            "'{0}' doesn't exist: the mesh only has {1} {2}. Pick it again "
+            "with Get Selected.".format(anchor, count,
+                                        "vertices" if kind == "vtx"
+                                        else "faces"))
+    return "{0}.{1}[{2}]".format(matches[0], kind, index)
+
+
+def split(anchor):
+    """("pCube1", "vtx", 12) for "pCube1.vtx[12]"; (anchor, None, -1) for
+    a plain transform."""
+    match = _COMPONENT.match(anchor)
+    if match is None:
+        return anchor, None, -1
+    return match.group("node"), match.group("kind"), int(match.group("index"))
+
+
+def node_of(anchor):
+    """The transform an anchor belongs to."""
+    return split(anchor)[0]
+
+
 def short_name(node):
-    return node.split("|")[-1]
+    node, kind, index = split(node)
+    name = node.split("|")[-1]
+    return name if kind is None else "{0}.{1}[{2}]".format(name, kind, index)
 
 
-def world_position(node):
-    return tuple(cmds.xform(node, query=True, worldSpace=True,
-                            translation=True))
+def world_position(anchor):
+    node, kind, _index = split(anchor)
+    if kind is None:
+        return tuple(cmds.xform(node, query=True, worldSpace=True,
+                                translation=True))
+    flat = cmds.xform(anchor, query=True, worldSpace=True, translation=True)
+    points = [flat[i:i + 3] for i in range(0, len(flat), 3)]
+    return tuple(sum(p[axis] for p in points) / len(points)
+                 for axis in range(3))
 
 
 def distance(p, q):
     return sum((a - b) ** 2 for a, b in zip(p, q)) ** 0.5
 
 
-def selected_transforms():
-    """The selection in the order it was clicked, transforms only.
-    Returns (anchors, ignored)."""
+def selected_anchors():
+    """The selection in the order it was clicked: transforms, and single
+    vertices or faces. Returns (anchors, ignored)."""
     if not cmds.selectPref(query=True, trackSelectionOrder=True):
         cmds.selectPref(trackSelectionOrder=True)
-    selection = cmds.ls(orderedSelection=True, long=True) or []
+    selection = cmds.ls(orderedSelection=True, long=True, flatten=True) or []
     anchors, ignored = [], []
     for item in selection:
         if "." in item:
-            # Components (vertices, faces) are supported from week 3.
-            ignored.append(item)
+            node, kind, index = split(item)
+            if kind is None:  # edges, UVs and so on
+                ignored.append(item)
+                continue
+            if not cmds.objectType(node, isAType="transform"):
+                node = cmds.listRelatives(node, parent=True, fullPath=True)[0]
+            anchors.append("{0}.{1}[{2}]".format(node, kind, index))
         elif cmds.objectType(item, isAType="transform"):
             anchors.append(item)
         else:
@@ -96,8 +149,8 @@ def selected_transforms():
 def mesh_shape(anchor):
     """The anchor's own visible mesh shape, or None for locators, joints,
     groups and other non-mesh anchors."""
-    for shape in cmds.listRelatives(anchor, shapes=True, fullPath=True,
-                                    noIntermediate=True) or []:
+    for shape in cmds.listRelatives(node_of(anchor), shapes=True,
+                                    fullPath=True, noIntermediate=True) or []:
         if cmds.objectType(shape) == "mesh":
             return shape
     return None

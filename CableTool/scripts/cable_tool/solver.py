@@ -308,12 +308,14 @@ def wire_variation(settings):
     }
 
 
-def wire_offsets(pivots, settings):
+def wire_offsets(pivots, settings, normals=None):
     """Where this wire meets each anchor, relative to the anchor's pivot,
     across the direction of travel. In a row (a pole's crossarm) the
     wires sit side by side, evenly spaced over Spread, and stay parallel;
     in a cluster each wire lands at a random spot within Spread at every
-    anchor, so the wires cross and tangle."""
+    anchor, so the wires cross and tangle. At a port (normals[i] given)
+    the spread lies on the surface instead, so wires fan out over a wall
+    rather than sticking out of it."""
     count = len(pivots)
     wires = max(int(settings["wireCount"]), 1)
     spread = settings["spread"]
@@ -327,12 +329,17 @@ def wire_offsets(pivots, settings):
     radii = np.sqrt(rng.uniform(0.0, 1.0, OFFSET_DRAWS)) * 0.5 * spread
     across = (int(settings["wireIndex"]) / float(wires - 1) - 0.5) * spread
 
+    normals = normals or [None] * count
     offsets = []
     for i, pivot in enumerate(pivots):
         travel = _unit(pivots[min(i + 1, count - 1)]
                        - pivots[max(i - 1, 0)])
+        if normals[i] is not None:
+            # Spread across the surface: "travel" becomes the surface
+            # normal, so side and lift lie in the surface's plane.
+            travel = normals[i]
         side = _unit(np.cross(travel, up))
-        if not side.any():  # a vertical run: any horizontal side will do
+        if not side.any():  # vertical: any horizontal side will do
             side = np.array([1.0, 0.0, 0.0])
         lift = np.cross(side, travel)
         if settings["spreadRow"]:
@@ -349,6 +356,44 @@ def wire_offsets(pivots, settings):
 # -------------------------------------------------------------------------
 def _translation(matrix):
     return np.array([matrix[12], matrix[13], matrix[14]])
+
+
+class Anchor(object):
+    """One anchor as the solver sees it: world matrix, mesh data (or
+    None), and which component it is (0 = the whole object, 1 = vertex,
+    2 = face) with its index."""
+
+    def __init__(self, matrix, mesh, kind=0, index=0):
+        self.matrix = matrix
+        self.mesh = mesh
+        self.kind = kind
+        self.index = index
+
+    def port(self):
+        """(world point, world unit normal) of the vertex or face, or None
+        for a whole object. Read from the mesh as it is now, so a
+        deforming mesh carries its ports along."""
+        if self.mesh is None or self.kind == 0:
+            return None
+        fn = om.MFnMesh(self.mesh)
+        try:
+            if self.kind == 1:
+                point = fn.getPoint(self.index)
+                normal = fn.getVertexNormal(self.index, False)
+            else:
+                corners = fn.getPolygonVertices(self.index)
+                point = om.MPoint()
+                for corner in corners:
+                    point += om.MVector(fn.getPoint(corner))
+                point = om.MPoint(om.MVector(point) / len(corners))
+                normal = fn.getPolygonNormal(self.index)
+        except (RuntimeError, ValueError):
+            return None  # the index no longer exists (topology changed)
+        world = point * self.matrix
+        normal = om.MVector(normal).transformAsNormal(self.matrix)
+        normal.normalize()
+        return (np.array([world.x, world.y, world.z]),
+                np.array([normal.x, normal.y, normal.z]))
 
 
 class CableSolverNode(om.MPxNode):
@@ -381,9 +426,15 @@ class CableSolverNode(om.MPxNode):
         cls.anchorMatrix = matrix.create("anchorMatrix", "am")
         cls.anchorMesh = typed.create("anchorMesh", "ams",
                                       om.MFnData.kMesh)
+        # 0 = the whole object, 1 = vertex anchorIndex, 2 = face.
+        cls.anchorKind = num.create("anchorKind", "ak",
+                                    om.MFnNumericData.kInt, 0)
+        cls.anchorIndex = num.create("anchorIndex", "ai",
+                                     om.MFnNumericData.kInt, 0)
         cls.anchor = compound.create("anchor", "an")
-        compound.addChild(cls.anchorMatrix)
-        compound.addChild(cls.anchorMesh)
+        for child in (cls.anchorMatrix, cls.anchorMesh, cls.anchorKind,
+                      cls.anchorIndex):
+            compound.addChild(child)
         compound.array = True
         cls.addAttribute(cls.anchor)
 
@@ -485,25 +536,48 @@ class CableSolverNode(om.MPxNode):
             element = handle.inputValue()
             matrix = element.child(self.anchorMatrix).asMatrix()
             mesh = element.child(self.anchorMesh).asMesh()
-            anchors.append((handle.elementLogicalIndex(), matrix,
-                            None if mesh.isNull() else mesh))
+            mesh = None if mesh.isNull() else mesh
+            kind = element.child(self.anchorKind).asInt() if mesh else 0
+            index = element.child(self.anchorIndex).asInt()
+            anchors.append((handle.elementLogicalIndex(),
+                            Anchor(matrix, mesh, kind, index)))
             if not handle.next():
                 break
         anchors.sort(key=lambda item: item[0])
-        return [(matrix, mesh) for _index, matrix, mesh in anchors]
+        return [anchor for _index, anchor in anchors]
 
     def _path(self, anchors, settings):
-        pivots = [_translation(matrix) for matrix, _mesh in anchors]
-        offsets = wire_offsets(pivots, settings)
-        colliders = [Collider(mesh, matrix) if mesh is not None else None
-                     for matrix, mesh in anchors]
+        colliders = [Collider(a.mesh, a.matrix) if a.mesh is not None
+                     else None for a in anchors]
+        ports = [a.port() for a in anchors]  # (point, normal) or None
+        pivots = [port[0] if port else _translation(a.matrix)
+                  for a, port in zip(anchors, ports)]
+        offsets = wire_offsets(pivots, settings,
+                               [port[1] if port else None for port in ports])
         points = [p + o for p, o in zip(pivots, offsets)]
         exits = [None] * len(anchors)
         eases = [True] * len(anchors)
         up = np.array([0.0, 1.0, 0.0])
+        last = len(anchors) - 1
 
-        for i, neighbour in ((0, 1), (len(anchors) - 1, len(anchors) - 2)):
+        for i, port in enumerate(ports):
+            if port is None:
+                continue
+            # A vertex or face is a port: the cable plugs in there and
+            # leaves along its normal. This wire's offset slides it over
+            # the surface, back onto the mesh.
+            point, normal = port
+            if offsets[i].any():
+                point, normal = colliders[i].closest(points[i])
+            if i in (0, last):
+                points[i], exits[i] = point, normal
+            else:  # a waypoint: the cable passes just off the surface
+                points[i] = point + normal * settings["radius"]
+
+        for i, neighbour in ((0, 1), (last, last - 1)):
             collider = colliders[i]
+            if ports[i] is not None:
+                continue
             if collider is None or not settings["attach"]:
                 eases[i] = False  # a free end hangs at the chain's angle
                 continue
@@ -515,15 +589,17 @@ class CableSolverNode(om.MPxNode):
             points[i] = surface
             exits[i] = _unit(normal + toward)
 
-        for i in range(1, len(anchors) - 1):
-            if colliders[i] is not None and settings["drape"]:
+        for i in range(1, last):
+            if ports[i] is None and colliders[i] is not None \
+                    and settings["drape"]:
                 top, _normal = colliders[i].closest(
                     points[i] + up * DRAPE_PROBE_HEIGHT)
                 points[i] = top + up * settings["radius"]
 
         active = [c for i, c in enumerate(colliders) if c is not None
-                  and (settings["drape"] if 0 < i < len(anchors) - 1
-                       else settings["attach"])]
+                  and (ports[i] is not None
+                       or (settings["drape"] if 0 < i < last
+                           else settings["attach"]))]
         return np.array(points), exits, eases, active
 
     @staticmethod

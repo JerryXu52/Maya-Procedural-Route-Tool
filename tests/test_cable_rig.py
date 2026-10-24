@@ -193,7 +193,7 @@ def cable_keeps_its_length():
 def shape_settings_drive_sweep_live():
     a = locator("A", (0, 0, 0))
     b = locator("B", (10, 0, 0))
-    cable = build([a, b], sag=0.0, radius=0.1, sides=8)
+    cable = build([a, b], sag=0.0, radius=0.1, sides=8, endCaps=0)
     _shape, geo = parts(cable)
     assert abs(bbox(geo)[5] - 0.1) < 0.01
     cable.update({"radius": 0.5})
@@ -219,6 +219,37 @@ def tube_is_smooth_along_its_length():
     _shape, geo = parts(cable)
     rings = cmds.polyEvaluate(geo, face=True) / 8
     assert rings > 40, rings  # a ring at least every diameter
+
+
+@test
+def uvs_tile_along_the_length_at_a_set_rate():
+    # Instructor: UVs along the length, so a striped or ribbed texture
+    # tiles correctly without hand fixing.
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], sag=0.0, radius=0.1, uvRepeat=2.0)
+    shape, geo = parts(cable)
+    length = cmds.arclen(shape)
+    (u_low, u_high), (v_low, v_high) = cmds.polyEvaluate(geo,
+                                                         boundingBox2d=True)
+    assert abs(v_high - 2.0 * length) < 0.05 * length, (v_high, length)
+    # Square texels: around the tube U spans its circumference x repeat.
+    circumference = 2 * 3.14159 * 0.1
+    assert abs(u_high - 2.0 * circumference) < 0.1, u_high
+    cmds.xform(b, worldSpace=True, translation=(20, 0, 0))  # live
+    v_high = cmds.polyEvaluate(geo, boundingBox2d=True)[1][1]
+    assert abs(v_high - 2.0 * cmds.arclen(shape)) < 1.0, v_high
+
+
+@test
+def end_caps_close_the_tube():
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], endCaps=0, sides=8)
+    _shape, geo = parts(cable)
+    open_faces = cmds.polyEvaluate(geo, face=True)
+    cable.update({"endCaps": 1})
+    assert cmds.polyEvaluate(geo, face=True) > open_faces
 
 
 @test
@@ -324,6 +355,113 @@ def cable_leaves_a_surface_without_folding():
 
 
 @test
+def vertex_end_is_a_port_that_follows_the_vertex():
+    # A vertex is a port: the cable plugs in there and leaves along the
+    # vertex normal, and stays on it when the mesh is edited.
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    b = locator("B", (10, 0, 0))
+    corner = cube + ".vtx[1]"  # (1, -1, 1)
+    cable = build([corner, b], sag=0.1, leadOut=0.5)
+    shape, _geo = parts(cable)
+    assert close(cv(shape, 0), (1, -1, 1)), cv(shape, 0)
+    low = cmds.getAttr(shape + ".minValue")
+    tangent = cmds.pointOnCurve(shape, parameter=low, normalizedTangent=True)
+    normal = [c / 3 ** 0.5 for c in (1, -1, 1)]  # the corner's normal
+    assert close(tangent, normal, 0.02), tangent
+
+    cmds.move(0, -2, 0, corner, relative=True)  # edit the mesh
+    assert close(cv(shape, 0), (1, -3, 1)), cv(shape, 0)
+
+
+@test
+def face_end_sits_at_its_center_along_its_normal():
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    cmds.xform(cube, worldSpace=True, translation=(0, 5, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([cube + ".f[1]", b], sag=0.1, leadOut=0.5)  # the top
+    shape, _geo = parts(cable)
+    assert close(cv(shape, 0), (0, 6, 0)), cv(shape, 0)
+    low = cmds.getAttr(shape + ".minValue")
+    tangent = cmds.pointOnCurve(shape, parameter=low, normalizedTangent=True)
+    assert tangent[1] > 0.99, tangent  # straight up out of the top
+    cmds.setAttr(cube + ".rotateZ", -90)  # the top now faces +x
+    assert close(cv(shape, 0), (1, 5, 0)), cv(shape, 0)
+
+
+@test
+def face_waypoint_passes_just_off_the_face():
+    cube = cmds.polyCube(width=2, height=2, depth=2, name="box")[0]
+    a = locator("A", (-6, 3, 0))
+    b = locator("B", (6, 3, 0))
+    cable = build([a, cube + ".f[1]", b], radius=0.1, sag=0.0)  # the top
+    shape, _geo = parts(cable)
+    target = (0, 1.1, 0)
+    gap = min(sum((p - q) ** 2 for p, q in zip(point, target)) ** 0.5
+              for point in curve_points(shape, 800))
+    assert gap < 0.05, gap
+
+
+@test
+def bad_components_raise_friendly_errors():
+    from cable_tool.config import CableToolError
+    from cable_tool.route import Route
+    cube = cmds.polyCube(name="box")[0]
+    a = locator("A", (0, 0, 0))
+    for bad in (cube + ".vtx[99]", cube + ".f[6]", a + ".vtx[0]"):
+        try:
+            Route(bad, cube).validate()
+        except CableToolError:
+            continue
+        raise AssertionError("no error for " + bad)
+
+
+@test
+def components_survive_load_and_rebuild():
+    from cable_tool.generators import CableGenerator
+    cube = cmds.polyCube(name="box")[0]
+    b = locator("B", (10, 0, 0))
+    cable = build([cube + ".f[4]", b])
+    found = CableGenerator.from_node(parts(cable)[1])
+    route = found.read_route()
+    assert route.start == "box.f[4]", route.start
+    found.update({"wireCount": 2})  # rebuilds from the stored route
+    shape = cmds.listRelatives(cmds.ls(found.group + "|*_crv",
+                                       long=True)[0], shapes=True,
+                               fullPath=True)[0]
+    assert abs(cv(shape, 0)[0] - 0.5) < 1e-3, cv(shape, 0)  # still on +x
+
+
+@test
+def selection_order_includes_components():
+    from cable_tool.route import selected_anchors
+    cube = cmds.polyCube(name="box")[0]
+    b = locator("B", (10, 0, 0))
+    cmds.selectPref(trackSelectionOrder=True)
+    cmds.select(clear=True)
+    cmds.select(cube + ".f[4]")
+    cmds.select(b, add=True)
+    cmds.select(cube + ".e[0]", add=True)  # edges are not anchors
+    anchors, ignored = selected_anchors()
+    assert [a.split("|")[-1] for a in anchors] == ["box.f[4]", "B"], anchors
+    assert len(ignored) == 1, ignored
+
+
+@test
+def wires_fan_out_across_a_face():
+    # Several wires plugged into one wall face spread over the wall
+    # instead of sticking out of it.
+    wall = cmds.polyCube(width=1, height=10, depth=10, name="wall")[0]
+    b = locator("B", (10, 5, 0))
+    run = build([wall + ".f[4]", b], wireCount=6, spread=3.0,
+                spreadRow=0, seed=2)
+    starts = [cv(cmds.listRelatives(c, shapes=True, fullPath=True)[0], 0)
+              for c in cmds.ls(run.group + "|*_crv", long=True)]
+    assert all(abs(p[0] - 0.5) < 1e-3 for p in starts), starts  # on it
+    spread = max(p[1] for p in starts) - min(p[1] for p in starts)
+    assert spread > 0.5, starts  # and spread over it
+
+
+@test
 def several_wires_spread_and_repeat():
     a = locator("A", (0, 5, 0))
     b = locator("B", (10, 5, 0))
@@ -359,6 +497,28 @@ def wire_count_rebuilds_and_keeps_name():
     assert len(cmds.ls(cable.group + "|*_crv")) == 3
     # Smoothness is live now (the solver re-samples), no rebuild needed.
     assert cable.update({"samples": 10}) == []
+
+
+@test
+def bake_leaves_plain_meshes_and_removes_the_rig():
+    from cable_tool import nodes
+    a = locator("A", (0, 0, 0))
+    b = locator("B", (10, 0, 0))
+    cable = build([a, b], wireCount=3)
+    cmds.flushUndo()
+    baked = cable.bake()
+    meshes = cmds.listRelatives(baked, children=True, fullPath=True)
+    assert len(meshes) == 3, meshes
+    for mesh in meshes:
+        shape = cmds.listRelatives(mesh, shapes=True, fullPath=True)[0]
+        assert not cmds.listConnections(shape + ".inMesh")  # no history
+        assert cmds.polyEvaluate(mesh, face=True) > 0
+    assert not cmds.ls(type="cableToolSolver")  # the live rig is gone
+    nodes.delete_all()  # and Clear All leaves the baked meshes alone
+    assert all(cmds.objExists(m) for m in meshes)
+    cmds.undo()  # Ctrl+Z gives the live run back
+    cmds.undo()
+    assert len(cmds.ls(type="cableToolSolver")) == 3
 
 
 @test
@@ -480,6 +640,25 @@ def settings_are_sanitised():
     assert clean["sides"] == 3
     assert clean["sag"] == 0.0
     assert clean["taper"] == 10.0
+
+
+@test
+def installer_writes_a_module_file():
+    # Simulates dragging install.py in, into a scratch modules folder.
+    import importlib.util
+    import tempfile
+    root = os.path.normpath(os.path.join(HERE, "..", "CableTool"))
+    spec = importlib.util.spec_from_file_location(
+        "cable_installer", os.path.join(root, "install.py"))
+    installer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(installer)
+    modules = tempfile.mkdtemp()
+    mod_file = installer.install(root=root, modules=modules)
+    text = open(mod_file).read()
+    from cable_tool.config import VERSION
+    assert text == "+ CableTool {0} {1}\n".format(VERSION, root), text
+    assert cmds.pluginInfo("cableTool", query=True, loaded=True)
+    assert os.path.isfile(os.path.join(root, "icons", "cableTool.png"))
 
 
 @test

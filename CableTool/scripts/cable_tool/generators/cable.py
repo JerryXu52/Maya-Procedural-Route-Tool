@@ -17,7 +17,8 @@ import maya.cmds as cmds
 
 from cable_tool import nodes, route as route_mod, solver
 from cable_tool.config import (DEGREES_PER_TURN, SWEEP_INTERP_DISTANCE,
-                               SWEEP_PROFILE_POLY, CableToolError)
+                               SWEEP_PROFILE_POLY, SWEEP_UVS_UNFOLD,
+                               CableToolError)
 from cable_tool.generators.base import BaseGenerator
 
 # Group attribute -> sweepMeshCreator attribute, connected directly.
@@ -57,6 +58,7 @@ class CableGenerator(BaseGenerator):
         ("Wires", ("wireCount", "spread", "spreadRow", "slackVariation",
                    "thicknessVariation", "seed")),
         ("Ends", ("attach", "leadOut")),
+        ("Surface", ("endCaps", "uvRepeat")),
     )
     presets = PRESETS
 
@@ -79,8 +81,13 @@ class CableGenerator(BaseGenerator):
         cmds.setAttr(solve + ".wireIndex", wire)
         for i, anchor in enumerate(anchors):
             element = "{0}.anchor[{1}]".format(solve, i)
-            cmds.connectAttr(anchor + ".worldMatrix[0]",
+            node, kind, index = route_mod.split(anchor)
+            cmds.connectAttr(node + ".worldMatrix[0]",
                              element + ".anchorMatrix")
+            if kind is not None:
+                cmds.setAttr(element + ".anchorKind",
+                             route_mod.COMPONENT_KINDS[kind])
+                cmds.setAttr(element + ".anchorIndex", index)
             mesh = route_mod.mesh_shape(anchor)
             if mesh:
                 cmds.connectAttr(mesh + ".outMesh", element + ".anchorMesh")
@@ -129,12 +136,39 @@ class CableGenerator(BaseGenerator):
                          sweep + ".interpolationDistance")
         cmds.connectAttr(curve_shape + ".worldSpace[0]",
                          sweep + ".inCurveArray[0]")
+        cmds.connectAttr(self.group + ".endCaps", sweep + ".capsEnable")
 
         geo = nodes.create("transform", name + "_geo", cable_id,
                            parent=self.group)
         geo = cmds.ls(geo, long=True)[0]
         cmds.setAttr(geo + ".inheritsTransform", 0)
         shape = nodes.create("mesh", name + "_geoShape", cable_id, parent=geo)
-        cmds.connectAttr(sweep + ".outMeshArray[0]", shape + ".inMesh")
+        cmds.connectAttr(self._uvs_along_length(name, sweep, curve_shape,
+                                                cable_id),
+                         shape + ".inMesh")
         cmds.sets(shape, edit=True, forceElement="initialShadingGroup")
         return geo
+
+    def _uvs_along_length(self, name, sweep, curve_shape, cable_id):
+        """Sweep Mesh's Unfold UVs run V 0-1 along the cable and U around
+        it with square texels. Scaling both by length x repeat-per-unit
+        makes a texture tile at the same density on every cable, live as
+        the cable stretches. Returns the mesh plug to feed the shape."""
+        cmds.setAttr(sweep + ".createUVs", SWEEP_UVS_UNFOLD)
+        info = nodes.create("curveInfo", name + "_length", cable_id)
+        cmds.connectAttr(curve_shape + ".worldSpace[0]",
+                         info + ".inputCurve")
+        tiles = nodes.create("multDL", name + "_uvTiles", cable_id)
+        cmds.connectAttr(info + ".arcLength", tiles + ".input1")
+        cmds.connectAttr(self.group + ".uvRepeat", tiles + ".input2")
+        scale = nodes.create("polyMoveUV", name + "_uvScale", cable_id)
+        # Every UV, however many the tube has as it changes.
+        cmds.setAttr(scale + ".inputComponents", 1, "map[*]",
+                     type="componentList")
+        cmds.setAttr(scale + ".pivotU", 0.0)
+        cmds.setAttr(scale + ".pivotV", 0.0)
+        cmds.connectAttr(tiles + ".output", scale + ".scaleU")
+        cmds.connectAttr(tiles + ".output", scale + ".scaleV")
+        cmds.connectAttr(sweep + ".outMeshArray[0]",
+                         scale + ".inputPolymesh")
+        return scale + ".output"

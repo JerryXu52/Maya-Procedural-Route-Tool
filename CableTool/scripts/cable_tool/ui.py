@@ -249,7 +249,9 @@ class AnchorField(QtWidgets.QWidget):
         self.edit.setPlaceholderText("nothing picked")
         self.edit.setToolTip(tip)
         button = QtWidgets.QPushButton("Get Selected")
-        button.setToolTip("Use the first selected object or locator.")
+        button.setToolTip("Use the first selected object, locator, vertex "
+                          "or face. A vertex or face is a port: the cable "
+                          "leaves along its normal.")
         button.clicked.connect(lambda: on_pick(self))
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -461,6 +463,12 @@ class CableToolWindow(QtWidgets.QWidget):
         self.rebuild_button.setToolTip("Rebuild the current build along the "
                                        "route shown above.")
         self.rebuild_button.clicked.connect(self.on_rebuild)
+        self.bake_button = QtWidgets.QPushButton("Bake")
+        self.bake_button.setMinimumHeight(34)
+        self.bake_button.setToolTip("Freeze the current build into plain "
+                                    "meshes with no history, and remove the "
+                                    "live rig. Ctrl+Z undoes it.")
+        self.bake_button.clicked.connect(self.on_bake)
         clear = QtWidgets.QPushButton("Clear All")
         clear.setMinimumHeight(34)
         clear.setStyleSheet("background-color: #944d4d; color: white;")
@@ -468,6 +476,7 @@ class CableToolWindow(QtWidgets.QWidget):
         clear.clicked.connect(self.on_clear_all)
         row.addWidget(generate, 3)
         row.addWidget(self.rebuild_button, 2)
+        row.addWidget(self.bake_button, 1)
         row.addWidget(clear, 2)
         layout.addLayout(row)
 
@@ -525,16 +534,17 @@ class CableToolWindow(QtWidgets.QWidget):
         else:
             self.current_label.setText("Editing: <i>nothing yet</i>")
         self.rebuild_button.setEnabled(cable is not None)
+        self.bake_button.setEnabled(cable is not None)
 
     def _select_anchors(self):
-        anchors, ignored = route_mod.selected_transforms()
+        anchors, ignored = route_mod.selected_anchors()
         if ignored:
-            self.set_status("Ignored {0} item(s) that are not objects or "
-                            "locators (vertex/face anchors arrive in week "
-                            "3).".format(len(ignored)), "warning")
+            self.set_status("Ignored {0} item(s) that are not objects, "
+                            "locators, vertices or faces.".format(
+                                len(ignored)), "warning")
         if not anchors:
-            raise CableToolError("Select one or more objects or locators "
-                                 "first.")
+            raise CableToolError("Select one or more objects, locators, "
+                                 "vertices or faces first.")
         return [cmds.ls(a)[0] for a in anchors]
 
     def _show_route(self, route):
@@ -582,8 +592,9 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_use_selection_order(self):
         anchors = self._select_anchors()
         if len(anchors) < 2:
-            raise CableToolError("Select at least 2 objects or locators, in "
-                                 "the order the cable should run.")
+            raise CableToolError("Select at least 2 anchors (objects, "
+                                 "locators, vertices or faces), in the order "
+                                 "the cable should run.")
         self._show_route(route_mod.Route(anchors[0], anchors[-1],
                                          anchors[1:-1]))
         self.set_status("Route set: {0} anchor(s).".format(len(anchors)),
@@ -720,6 +731,21 @@ class CableToolWindow(QtWidgets.QWidget):
         cmds.select(group, replace=True)
         self.set_status("Rebuilt {0}.".format(route_mod.short_name(group)),
                         "ok")
+
+    @guarded
+    def on_bake(self):
+        cable = self._current_cable()
+        if cable is None:
+            raise CableToolError("Nothing to bake yet. Generate first, or "
+                                 "select a build and use Edit > Load "
+                                 "Selected.")
+        baked = cable.bake()
+        self.current = None
+        self._refresh_current()
+        cmds.select(baked, replace=True)
+        self.set_status("Baked into {0}: plain meshes, no history. Ctrl+Z "
+                        "brings the live {1} back.".format(
+                            route_mod.short_name(baked), cable.noun), "ok")
 
     @guarded
     def on_load_selected(self):

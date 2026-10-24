@@ -40,6 +40,14 @@ def tag(node, cable_id):
     return node
 
 
+def untag(node):
+    """Make a node the artist's own: Clear All and Delete no longer see
+    it."""
+    if cmds.attributeQuery(TAG_ATTR, node=node, exists=True):
+        cmds.deleteAttr(node + "." + TAG_ATTR)
+    return node
+
+
 def create(node_type, name, cable_id, parent=None):
     """Create a node and tag it as belonging to a cable."""
     kwargs = {"name": name}

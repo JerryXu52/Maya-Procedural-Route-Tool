@@ -14,6 +14,9 @@ from cable_tool.config import (DEFAULTS, MODE_ATTR, CableToolError,
                                sanitize_settings)
 
 ANCHORS_ATTR = "anchors"
+# Per anchor, the component part of its name ("vtx[12]", "f[3]" or ""):
+# a message connection can only point at the object.
+COMPONENTS_ATTR = "anchorComponents"
 
 
 class BaseGenerator(object):
@@ -83,8 +86,11 @@ class BaseGenerator(object):
         for index in cmds.getAttr(plug, multiIndices=True) or []:
             source = cmds.listConnections("{0}[{1}]".format(plug, index),
                                           source=True, destination=False)
-            if source:
-                anchors.append(source[0])
+            if not source:
+                continue
+            part = cmds.getAttr("{0}.{1}[{2}]".format(
+                self.group, COMPONENTS_ATTR, index)) or ""
+            anchors.append(source[0] + ("." + part if part else ""))
         if len(anchors) < 2:
             raise CableToolError("This {0} has lost its anchors (were they "
                                  "deleted?). Pick new ones and Rebuild."
@@ -144,8 +150,29 @@ class BaseGenerator(object):
             return self.build(route, settings, name=name)
 
     def bake(self):
-        """Freeze the build into static geometry (week 3)."""
-        raise NotImplementedError
+        """Freeze the build into plain meshes with no history, then remove
+        the live build. Returns the group holding the baked meshes."""
+        meshes = [geo for geo in cmds.listRelatives(
+            self.group, children=True, fullPath=True, type="transform") or []
+            if geo.endswith("_geo")]
+        if not meshes:
+            raise CableToolError("{0} has no geometry to bake.".format(
+                route_mod.short_name(self.group)))
+        name = self.name
+        with nodes.undo_chunk("CableTool_Bake"):
+            baked = cmds.group(empty=True, world=True,
+                               name=name + "_baked_GRP")
+            for geo in meshes:
+                copy = cmds.duplicate(geo, name=route_mod.short_name(geo)
+                                      .replace("_geo", "_baked"))[0]
+                copy = cmds.parent(copy, baked)[0]
+                for channel in ("t", "r", "s"):  # locked on the live rig
+                    cmds.setAttr(copy + "." + channel, lock=False)
+                for node in [copy] + (cmds.listRelatives(
+                        copy, shapes=True, fullPath=True) or []):
+                    nodes.untag(node)
+            self.delete()
+        return cmds.ls(baked, long=True)[0]
 
     def delete(self):
         """Remove every node this build created."""
@@ -194,10 +221,17 @@ class BaseGenerator(object):
     def _record_anchors(self, anchors):
         cmds.addAttr(self.group, longName=ANCHORS_ATTR,
                      attributeType="message", multi=True)
+        cmds.addAttr(self.group, longName=COMPONENTS_ATTR, dataType="string",
+                     multi=True)
         for i, anchor in enumerate(anchors):
-            cmds.connectAttr(anchor + ".message",
+            node, kind, index = route_mod.split(anchor)
+            cmds.connectAttr(node + ".message",
                              "{0}.{1}[{2}]".format(self.group, ANCHORS_ATTR,
                                                    i))
+            cmds.setAttr("{0}.{1}[{2}]".format(self.group, COMPONENTS_ATTR, i),
+                         "" if kind is None else "{0}[{1}]".format(kind,
+                                                                   index),
+                         type="string")
 
 
 class PlannedGenerator(BaseGenerator):

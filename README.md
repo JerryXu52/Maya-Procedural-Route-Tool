@@ -8,16 +8,16 @@ A Maya 2027 Python/Qt plugin that builds live geometry along a route of picked o
 - [Try it (current build)](#try-it-current-build)
 - **The Pitch:** [1. One sentence](#1-the-tool-in-one-sentence) · [2. The chore](#2-the-chore-it-ends) · [3. The UI](#3-the-ui) · [4. Why it's advanced](#4-why-its-advanced) · [5. The three weeks](#5-the-three-weeks) · [6. MVP](#6-the-smallest-version-that-still-counts-mvp) · [7. Riskiest part](#7-the-riskiest-part)
 - **Design Notes:** [8. Technical design](#8-technical-design) · [9. Plugin & packaging](#9-plugin--packaging) · [10. Lessons from my previous tool](#10-lessons-from-my-previous-tool) · [11. Future modes](#11-future-modes-fences-and-roads)
-- **Feedback:** [12. Peer run: Tong Lin](#12-peer-run-tong-lin) · [13. Fixes from the peer run](#13-fixes-from-the-peer-run) · [14. Physics solver and wire styles](#14-physics-solver-and-wire-styles)
+- **Feedback:** [12. Peer run: Tong Lin](#12-peer-run-tong-lin) · [13. Fixes from the peer run](#13-fixes-from-the-peer-run) · [14. Physics solver and wire styles](#14-physics-solver-and-wire-styles) · [15. Week 3](#15-week-3-ports-surface-bake-install)
 
 ---
 
 ## Try it (current build)
-Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)).
+Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, live sag and waypoints. Version 0.3.0 adds the fixes from the peer run ([section 13](#13-fixes-from-the-peer-run)) and the mode architecture behind the **Mode** dropdown (only `Cable / Pipe` is built; `Fence` and `Road` are listed greyed out). Version 0.4.0 replaces the cable's node network with a **physics solver node** and adds **multi-wire runs** with presets for utility lines and cyberpunk tangles ([section 14](#14-physics-solver-and-wire-styles)). Version 0.5.0 adds most of week 3: **vertex and face anchors** (ports), **end caps**, **UVs that tile along the length**, **Bake**, and the **drag-and-drop installer** with a shelf icon ([section 15](#15-week-3-ports-surface-bake-install)).
 
-1. In Maya 2027, open **Windows › Settings/Preferences › Plug-in Manager**, click **Browse** and pick `CableTool/plug-ins/cableTool.py`.
-2. Open **Cable Tool › Open Cable Tool** from the main menu bar, or run `cmds.cableTool()`.
-3. Select two or more locators or meshes in order, press **Use Selection Order**, then **Generate Cable**. Move one: the cable follows.
+1. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin (set to auto-load) and adds a **Cable Tool** shelf button. (Or, without installing: **Windows › Settings/Preferences › Plug-in Manager › Browse** and pick `CableTool/plug-ins/cableTool.py`.)
+2. Open **Cable Tool › Open Cable Tool** from the main menu bar, the shelf button, or run `cmds.cableTool()`.
+3. Select two or more objects, locators, vertices or faces in order, press **Use Selection Order**, then **Generate Cable**. Move one, or edit the mesh: the cable follows.
 
 Or open the demo — a row of utility poles and a cyberpunk alley; call `demo("peer")` afterwards for the peer run's cone, cube, sphere and cylinder: run `exec(open("tests/demo_scene.py").read())` in the Script Editor (use the full path), or launch Maya with it:
 ```
@@ -57,9 +57,10 @@ One window, top to bottom:
 | **Path** (live) | Sag · Stiffness · Corner Smoothing · Smoothness · Drape Over Mesh Waypoints |
 | **Wires** (live) | Wire Count (rebuilds by itself on release) · Spread · Spread In A Row · Slack Variation · Thickness Variation · Seed |
 | **Ends** (live) | Attach Ends to Surface · Lead-out Length |
+| **Surface** (live) | End Caps · Texture Repeat per Unit |
 | **Hardware** | Clamp/bracket/connector mesh picker · `Spacing` (every N units) · `End Caps` |
 | **UVs** | `Texture Repeat per Unit` |
-| **Footer** (pinned) | `Generate Cable` · `Rebuild Current` · `Bake to Static Mesh` · `Clear All` · colour-coded status box |
+| **Footer** (pinned) | `Generate Cable` · `Rebuild Current` · `Bake` · `Clear All` · colour-coded status box |
 
 - Settings scroll in **collapsible sections**; the footer never scrolls out of reach.
 - Status messages are tagged `[OK]` / `[WARNING]` / `[ERROR]` and say how to fix a problem, not just that one exists.
@@ -87,11 +88,11 @@ One window, top to bottom:
 - Waypoints: extra picks, each driving its own curve point the same way.
 
 **By Oct 26 — Components, hardware, UVs, polish**
-- Component attachment along normals, staying attached when the mesh moves.
-- Hardware instanced every N units, following the curve live; end caps.
-- Length-wise UVs.
-- Presets, bake, undo, edge-case error handling, UI polish.
-- **Packaging:** `.mod` file, drag-and-drop installer, shelf icon, clean unload (closes the window, removes the menu, deregisters the command); test install and reload on a fresh Maya prefs folder.
+- ✅ Component attachment along normals, staying attached when the mesh moves or deforms.
+- ⏳ Hardware instanced every N units, following the curve live. ✅ End caps.
+- ✅ Length-wise UVs.
+- ✅ Presets, bake, undo, edge-case error handling, UI polish.
+- ✅ **Packaging:** `.mod` file, drag-and-drop installer, shelf icon, clean unload (closes the window, removes the menu, deregisters the command and node); install tested into a scratch modules folder.
 
 **Stretch (in priority order)**
 1. Multi-wire bundles and noise variation.
@@ -134,7 +135,7 @@ The tool ships as a **Maya module** containing a **Python plugin**, so artists i
 ```
 CableTool/
 ├── CableTool.mod            ✅ tells Maya where the module lives
-├── install.py               ⏳ drag-and-drop installer
+├── install.py               ✅ drag-and-drop installer
 ├── plug-ins/
 │   └── cableTool.py         ✅ plugin entry point (thin)
 ├── scripts/
@@ -152,7 +153,8 @@ CableTool/
 │           ├── cable.py     ✅ CableGenerator
 │           └── planned.py   ✅ Fence / Road placeholders
 └── icons/
-    └── cableTool.png        ⏳ menu / shelf icon
+    ├── cableTool.png        ✅ menu / shelf icon (drawn with Qt)
+    └── cableTool@2x.png
 tests/
 ├── test_cable_rig.py        ✅ headless rig and physics tests (mayapy)
 ├── test_ui.py               ✅ headless window smoke test
@@ -166,7 +168,7 @@ tests/
 4. **Dependencies:** on load, call `cmds.loadPlugin('sweep', quiet=True)`; if it fails, the plugin still loads but the window shows a clear `[ERROR]` instead of crashing.
 5. **Clean unload:** `uninitializePlugin` closes the window, removes the menu and deregisters the command and the solver node, so unload → load works without restarting Maya. Maya refuses to unload a plugin while its nodes exist (including in the undo queue), so start a new scene first.
 6. **Module file:** `CableTool.mod` adds `plug-ins/`, `scripts/` and `icons/` to Maya's paths automatically.
-7. **Installer:** dragging `install.py` into the viewport (`onMayaDroppedPythonFile`) writes the `.mod` file into the user's `modules` folder and loads the plugin; tick **Auto load** in the Plug-in Manager to keep it on.
+7. **Installer:** dragging `install.py` into the viewport (`onMayaDroppedPythonFile`) writes a `.mod` file pointing at the `CableTool` folder into the user's `modules` folder, loads the plugin, sets it to auto-load and adds a shelf button. Nothing is copied, so keep the folder where it is (or drag the installer in again after moving it).
 8. **Test:** install on a clean Maya prefs folder; check load, unload, reload, and that the tool's nodes still open correctly in a scene saved before reloading.
 
 **Development loop:** a dev-only script unloads the plugin, reloads the `cable_tool` modules and loads it again in a running Maya, so I can iterate without restarting.
@@ -235,3 +237,12 @@ Tuned offline on a test cable: damping 0.3, gravity 0.003 segments/step, 8 const
 **Presets:** `Single Pipe` (one stiff tube), `Utility Line` (4 parallel, nearly taut, limp wires) and `Cyberpunk Tangle` (14 clustered wires, very uneven slack and thickness).
 
 **Measured in Maya 2026** (peer-run scene): no cable passes through any object, lengths stay within ~1.5%, and tightest bends are 1.7–4.8 tube radii. The showcase (44 wires) builds in ~3 s; moving one crossarm re-solves its wires in ~0.16 s.
+
+### 15. Week 3: ports, surface, bake, install
+- **Vertex and face anchors (ports).** Pick `pCube1.vtx[12]` or `pCube1.f[3]` like any other anchor, including in **Use Selection Order** (edges and UVs are ignored with a warning). The solver reads the vertex position or face center and its normal from the mesh as it is now, so the cable stays plugged in when the object moves, rotates or is edited. A port end leaves straight along the normal for `Lead-out Length`; a port waypoint is passed just off the surface. Several wires at a port fan out *across the surface* instead of across the direction of travel, so a bundle plugged into a wall spreads over the wall. The group stores each anchor's component next to its object, so Load and Rebuild bring ports back.
+- **End caps:** Sweep Mesh's caps, on by default (`End Caps`).
+- **UVs along the length:** Sweep Mesh's *Unfold* UVs run V 0→1 along the cable and U around it with square texels. A `curveInfo` arc length × `Texture Repeat per Unit` drives a `polyMoveUV` scale, so a striped texture tiles at the same density on every cable and stays correct as the cable stretches.
+- **Bake** freezes the current build into plain meshes in `<name>_baked_GRP` (no history, untagged so Clear All leaves them alone) and removes the live rig; Ctrl+Z brings it back.
+- **Installer and icon:** see [section 9](#9-plugin--packaging).
+- **Demo:** the cyberpunk alley's bundles now plug into wall faces.
+- **Still to do:** clamps / brackets instanced along the cable.

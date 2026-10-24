@@ -15,8 +15,9 @@ import maya.api.OpenMaya as om
 import maya.cmds as cmds
 
 VENDOR = "JerryXu52"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 MENU_NAME = "CableToolMenu"
+_PLUGIN_DIR = ""
 
 
 def maya_useNewAPI():
@@ -57,7 +58,7 @@ def _build_menu():
               tearOff=True)
     cmds.menuItem(label="Open Cable Tool",
                   command="import maya.cmds; maya.cmds.cableTool()",
-                  sourceType="python",
+                  sourceType="python", image=_icon(),
                   annotation="Open the Cable Tool window.")
     cmds.menuItem(divider=True)
     cmds.menuItem(label="Reload",
@@ -69,14 +70,23 @@ def _build_menu():
                   sourceType="python")
 
 
+def _icon():
+    # Next to plug-ins/ in the module; Maya also finds it by name once the
+    # module's icons/ folder is on XBMLANGPATH.
+    return os.path.normpath(os.path.join(_PLUGIN_DIR, "..", "icons",
+                                         "cableTool.png"))
+
+
 def _remove_menu():
     if cmds.menu(MENU_NAME, exists=True):
         cmds.deleteUI(MENU_NAME, menu=True)
 
 
 def initializePlugin(mobject):
+    global _PLUGIN_DIR
     plugin = om.MFnPlugin(mobject, VENDOR, VERSION, "Any")
-    _add_scripts_path(plugin.loadPath())
+    _PLUGIN_DIR = plugin.loadPath()
+    _add_scripts_path(_PLUGIN_DIR)
     plugin.registerCommand(CableToolCommand.NAME, CableToolCommand.creator)
     from cable_tool import solver
     plugin.registerNode(solver.NODE_NAME, solver.NODE_ID,

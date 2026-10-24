@@ -42,6 +42,19 @@ def _locator(name, pos):
     return loc
 
 
+def _face_near(mesh, point):
+    """The mesh face closest to a world point, as an anchor name."""
+    probe = cmds.createNode("closestPointOnMesh")
+    shape = cmds.listRelatives(mesh, shapes=True, fullPath=True)[0]
+    # outMesh + worldMatrix: fed worldMesh, the node ignores the transform.
+    cmds.connectAttr(shape + ".outMesh", probe + ".inMesh")
+    cmds.connectAttr(mesh + ".worldMatrix[0]", probe + ".inputMatrix")
+    cmds.setAttr(probe + ".inPosition", *point)
+    face = cmds.getAttr(probe + ".closestFaceIndex")
+    cmds.delete(probe)
+    return "{0}.f[{1}]".format(mesh, face)
+
+
 def utility_poles(x0=-30.0):
     """Four poles with crossarms; the wires rest on the middle crossarms
     and end on the outer ones."""
@@ -69,11 +82,14 @@ def utility_poles(x0=-30.0):
 
 
 def cyberpunk_alley(x0=12.0):
-    """Two buildings across an alley, strung with tangled bundles; one
-    bundle is draped over a pipe that spans the alley."""
-    left = cmds.polyCube(name="buildingA", width=6, height=20, depth=14)[0]
+    """Two buildings across an alley, strung with tangled bundles plugged
+    into wall faces; one bundle is draped over a pipe that spans the
+    alley."""
+    left = cmds.polyCube(name="buildingA", width=6, height=20, depth=14,
+                         subdivisionsHeight=10, subdivisionsDepth=7)[0]
     cmds.xform(left, worldSpace=True, translation=(x0, 10, 0))
-    right = cmds.polyCube(name="buildingB", width=6, height=24, depth=14)[0]
+    right = cmds.polyCube(name="buildingB", width=6, height=24, depth=14,
+                          subdivisionsHeight=12, subdivisionsDepth=7)[0]
     cmds.xform(right, worldSpace=True, translation=(x0 + 14, 12, 0))
     beam = cmds.polyCylinder(name="pipeBeam", radius=0.25, height=8,
                              subdivisionsX=12)[0]
@@ -87,12 +103,12 @@ def cyberpunk_alley(x0=12.0):
         (((wall_a, 18.5, 1.0), (wall_b, 19.0, -5.0)), 6, 23),
     )
     cables = []
-    for k, ((a, b), wires, seed) in enumerate(runs):
-        cables.append(_build([_locator("wallA{0}".format(k), a),
-                              _locator("wallB{0}".format(k), b)],
+    for (a, b), wires, seed in runs:
+        # Wall faces are ports: the wires plug in and fan out over them.
+        cables.append(_build([_face_near(left, a), _face_near(right, b)],
                              "Cyberpunk Tangle", wireCount=wires, seed=seed))
-    draped = _build([_locator("wallA_low", (wall_a, 11.0, 0.5)), beam,
-                     _locator("wallB_low", (wall_b, 10.5, 1.5))],
+    draped = _build([_face_near(left, (wall_a, 11.0, 0.5)), beam,
+                     _face_near(right, (wall_b, 10.5, 1.5))],
                     "Cyberpunk Tangle", wireCount=8, seed=42, sag=0.1)
     cables.append(draped)
     return cables

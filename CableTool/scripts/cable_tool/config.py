@@ -8,7 +8,7 @@ never disagree.
 import math
 
 TOOL_NAME = "Cable Tool"
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 # Attribute added to every node the tool creates. Its value is the UUID
 # of the cable's group, so cleanup finds nodes by tag, never by name.
@@ -24,6 +24,7 @@ EPSILON = 1e-6
 # are localised (they come back translated in non-English Maya).
 SWEEP_PROFILE_POLY = 0
 SWEEP_INTERP_DISTANCE = 3  # Precision, Start to End, EP to EP, Distance
+SWEEP_UVS_UNFOLD = 2       # None, Uniform, Unfold
 
 # A draped waypoint rests on the surface point closest to a probe this
 # far above the waypoint's pivot: the top of the object.
@@ -127,6 +128,17 @@ DEFAULTS = {
                 "type": "int", "rebuild": False, "label": "Seed",
                 "tip": "Picks a different random arrangement of the "
                        "wires."},
+    "endCaps": {"default": 1, "slider": (0, 1), "field": (0, 1),
+                "type": "bool", "rebuild": False, "label": "End Caps",
+                "tip": "Close the tube's ends."},
+    "uvRepeat": {"default": 1.0, "slider": (0.1, 10.0), "field": (0.001, 1000.0),
+                 "type": "float", "rebuild": False,
+                 "label": "Texture Repeat per Unit",
+                 "tip": "How many times a texture tiles per scene unit of "
+                        "cable. UVs run along the length (V) and around "
+                        "the tube (U) with square texels, so a striped or "
+                        "ribbed texture tiles evenly on every cable, "
+                        "whatever its length."},
     "attach":  {"default": 1, "slider": (0, 1), "field": (0, 1),
                 "type": "bool", "rebuild": False,
                 "label": "Attach Ends to Surface",
