@@ -6,7 +6,6 @@ Each test starts from a new scene. Exits non-zero if anything fails.
 The window is tested separately in test_ui.py.
 """
 
-import math
 import os
 import sys
 import traceback
@@ -240,23 +239,25 @@ def waypoints_turn_smoothly():
     w = locator("W", (5, 0, 5))
     b = locator("B", (10, 0, 0))
 
-    def sharpest_turn(smoothing):
-        cable = build([a, w, b], sag=0.3, smoothing=smoothing)
+    def tightest_bend(smoothing, sag):
+        """Smallest radius of curvature along the cable."""
+        cable = build([a, w, b], sag=sag, smoothing=smoothing)
         shape, _geo = parts(cable)
         low = cmds.getAttr(shape + ".minValue")
         high = cmds.getAttr(shape + ".maxValue")
-        steps = 200
-        tangents = [cmds.pointOnCurve(shape, parameter=low + (high - low)
-                                      * k / steps, normalizedTangent=True)
-                    for k in range(steps + 1)]
+        steps = 400
+        radius = min(cmds.pointOnCurve(shape, parameter=low + (high - low)
+                                       * k / steps, curvatureRadius=True)
+                     for k in range(1, steps))
         cable.delete()
-        return max(math.degrees(math.acos(max(-1.0, min(1.0, sum(
-            p * q for p, q in zip(u, v))))))
-            for u, v in zip(tangents, tangents[1:]))
+        return radius
 
-    smooth, sharp = sharpest_turn(1.0), sharpest_turn(0.0)
-    assert smooth < 6.0, smooth
-    assert sharp > smooth * 2, (sharp, smooth)
+    # Taut: straight runs meet in a point; smoothing rounds the corner.
+    assert tightest_bend(0.0, 0.0) < 0.1
+    assert tightest_bend(1.0, 0.0) > 1.0
+    # Sagging: smoothing still opens the tightest bend up clearly.
+    sharp, smooth = tightest_bend(0.0, 0.3), tightest_bend(1.0, 0.3)
+    assert smooth > sharp * 1.5, (sharp, smooth)
 
 
 @test

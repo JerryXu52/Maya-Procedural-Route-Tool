@@ -161,7 +161,11 @@ class CableGenerator(BaseGenerator):
 
         closest = nodes.create("closestPointOnMesh", prefix + "_cpom",
                                cable_id)
-        cmds.connectAttr(mesh + ".worldMesh[0]", closest + ".inMesh")
+        # Object-space mesh plus the world matrix: fed .worldMesh instead,
+        # the node never re-evaluates when the object is moved.
+        cmds.connectAttr(mesh + ".outMesh", closest + ".inMesh")
+        cmds.connectAttr(anchor + ".worldMatrix[0]",
+                         closest + ".inputMatrix")
         cmds.connectAttr(neighbour, closest + ".inPosition")
 
         # Attach off -> the pivot, and no lead-out.

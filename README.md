@@ -19,9 +19,15 @@ Weeks 1–2 are built: plugin, Qt window, live Sweep Mesh cable, `decomposeMatri
 2. Open **Cable Tool › Open Cable Tool** from the main menu bar, or run `cmds.cableTool()`.
 3. Select two or more locators or meshes in order, press **Use Selection Order**, then **Generate Cable**. Move one: the cable follows.
 
-Run the tests headlessly:
+Or open a demo that recreates the peer run (cone, cube, sphere and cylinder with cables through them): run `exec(open("tests/demo_scene.py").read())` in the Script Editor (use the full path), or launch Maya with it:
 ```
-MAYAPY=/Applications/Autodesk/maya2027/Maya.app/Contents/bin/mayapy
+open -n -a /Applications/Autodesk/maya2026/Maya.app --args -command \
+  "evalDeferred -lowestPriority \"python(\\\"exec(open('$PWD/tests/demo_scene.py').read())\\\")\""
+```
+
+Run the tests headlessly (tested with Maya 2026; replace `maya2026` with `maya2027` for 2027):
+```
+MAYAPY=/Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy
 $MAYAPY tests/test_cable_rig.py
 QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 ```
