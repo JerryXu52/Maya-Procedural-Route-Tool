@@ -1,5 +1,7 @@
 # Maya Procedural Route Tool
 
+<p align="right"><b>English</b> | <a href="README.zh-CN.md">简体中文</a></p>
+
 **Author:** Jianrui(Jerry) Xu
 
 A Maya Python/Qt plugin that builds live geometry along a route of picked objects, locators, vertices or faces. Pick the route once, choose what to build, and move anything on the route afterwards: the build follows.
@@ -462,6 +464,7 @@ CableTool/                       the Maya module (point Maya here)
     ├── i18n.py, locales/        languages
     ├── dev.py                   reload helper, list of interface strings
     └── generators/              one generator per mode (registry, base, cable, fence, planned)
+README.md, README.zh-CN.md       this guide, in English and Simplified Chinese
 docs/images/                     screenshots for this README
 tests/
 ├── test_cable_rig.py            57 headless rig, physics, fence, gate and language tests
