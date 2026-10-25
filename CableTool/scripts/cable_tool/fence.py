@@ -86,7 +86,7 @@ def _random(seed, kind, index):
 # -------------------------------------------------------------------------
 # Path and layout (pure math, testable without Maya)
 # -------------------------------------------------------------------------
-def path_runs(points, curve):
+def path_runs(points, curve, samples=PATH_SAMPLES):
     """Dense samples of each run between anchors: a list (one per run) of
     arrays of points, first and last on the anchors. curve blends each
     run from a straight line (0) to a Catmull-Rom curve (1)."""
@@ -103,8 +103,8 @@ def path_runs(points, curve):
                  points[1] if loop else p1 + (p1 - p0))
         m0, m1 = (p1 - before) * 0.5, (after - p0) * 0.5
         run = []
-        for k in range(PATH_SAMPLES + 1):
-            t = float(k) / PATH_SAMPLES
+        for k in range(samples + 1):
+            t = float(k) / samples
             t2, t3 = t * t, t * t * t
             spline = ((2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * m0
                       + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * m1)

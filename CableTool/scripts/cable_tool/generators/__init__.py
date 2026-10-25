@@ -8,7 +8,7 @@ from cable_tool import nodes
 from cable_tool.config import MODE_ATTR
 from cable_tool.generators.cable import CableGenerator
 from cable_tool.generators.fence import FenceGenerator
-from cable_tool.generators.planned import RoadGenerator
+from cable_tool.generators.road import RoadGenerator
 
 # Dropdown order.
 GENERATORS = (CableGenerator, FenceGenerator, RoadGenerator)

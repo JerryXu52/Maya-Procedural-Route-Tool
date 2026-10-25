@@ -10,7 +10,7 @@ A Maya Python/Qt plugin that builds live geometry along a route of picked object
 |---|---|---|
 | **Cable / Pipe** | ✅ complete | Physically hanging cables, pipes and wire bundles that sag, drape over supports, plug into surfaces along their normals and never pass through the objects they touch |
 | **Fence** | ✅ complete | Posts, rails and pickets that step over uneven ground, turn corners with mitred rails, close into yards and hang gates you can animate |
-| **Road** | planned | A flat ribbon with lane-marking UVs (listed greyed out in the Mode dropdown) |
+| **Road** | ✅ complete | Roads built like real ones: lanes with a drainage crown, banked curves, smoothed grades over the terrain with embankments, painted markings, curbs and sidewalks, and UVs laid out for lane-marking textures |
 
 Built for SVA *Programming for Animators* (midterm).
 
@@ -21,6 +21,10 @@ Built for SVA *Programming for Animators* (midterm).
 | ![A white picket fence round a house, its pickets following the ground, with a braced picket gate swung open into the yard](docs/images/gate-yard.png) | ![A three-rail ranch fence on a curved path over a hill, posts slightly weathered](docs/images/fence-ranch.png) |
 | **Wire fence with a double farm gate** | **The whole farm demo** |
 | ![Round posts carrying four sagging wires over rolling ground, with a two-leaf tubular steel gate standing open](docs/images/fence-wire.png) | ![Five fences on rolling ground: wire, privacy, picket yard and ranch rail](docs/images/fence-farm.png) |
+| **Country road winding over the hills** | **Highway painted by a texture on its lane UVs** |
+| ![A two-lane country road with a dashed yellow centre line winding over green hills on embankments, a city street and a gravel track loop beyond](docs/images/road-countryside.png) | ![A four-lane highway whose double yellow centre line, dashed lane lines and edge lines all come from one texture laid on the road's UVs](docs/images/road-highway.png) |
+| **City street with curbs and sidewalks** | **Road Surface: the built-in materials, and your own** |
+| ![A four-lane city street with a double yellow line, curbs and sidewalks, raised on an embankment over the hills](docs/images/road-street.png) | ![Six short roads side by side: asphalt, concrete and cobblestone with paint, gravel and dirt without, and one using an artist's checker material](docs/images/road-surfaces.png) |
 
 ## Contents
 
@@ -33,7 +37,8 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#features">Features</a><ul>
 <li><a href="#cable--pipe">Cable / Pipe</a></li>
 <li><a href="#fence">Fence</a></li>
-<li><a href="#both-modes">Both modes</a></li>
+<li><a href="#road">Road</a></li>
+<li><a href="#every-mode">Every mode</a></li>
 </ul></li>
 <li><a href="#install">Install</a></li>
 <li><a href="#quick-start">Quick start and demo scenes</a></li>
@@ -55,6 +60,7 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#cable--pipe-settings">Settings</a><ul>
 <li><a href="#cable--pipe-settings">Cable / Pipe settings</a></li>
 <li><a href="#fence-settings">Fence settings</a></li>
+<li><a href="#road-settings">Road settings</a></li>
 </ul></li>
 <li><a href="#recipes">Recipes</a><ul>
 <li><a href="#recipe-wall-pipe">Pipe out of a wall</a></li>
@@ -63,6 +69,9 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#recipe-yard-gate">Picket yard with a gate</a></li>
 <li><a href="#recipe-farm-gate">Wire fence with a farm gate</a></li>
 <li><a href="#recipe-railing">Railing on a wall</a></li>
+<li><a href="#recipe-country-road">Country road over hills</a></li>
+<li><a href="#recipe-city-street">City street</a></li>
+<li><a href="#recipe-road-texture">Road painted by a texture</a></li>
 </ul></li>
 <li><a href="#animating">Animating</a></li>
 <li><a href="#languages">Languages</a></li>
@@ -79,6 +88,8 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#the-cable-solver-cabletoolsolver">The cable solver</a></li>
 <li><a href="#fence-network">Fence network</a></li>
 <li><a href="#the-fence-builder-fencetoolbuilder">The fence builder</a></li>
+<li><a href="#road-network">Road network</a></li>
+<li><a href="#the-road-builder-roadtoolbuilder">The road builder</a></li>
 <li><a href="#shared-parts">Shared parts</a></li>
 </ul></li>
 <li><a href="#project-layout">Project layout</a></li>
@@ -91,6 +102,7 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#log-cable">Progress log: Cable / Pipe</a></li>
 <li><a href="#log-fence">Progress log: Fence</a></li>
 <li><a href="#log-gates">Progress log: Gates</a></li>
+<li><a href="#log-road">Progress log: Road</a></li>
 <li><a href="#lessons">Lessons from my previous tool</a></li>
 <li><a href="#peer-run">Peer run: Tong Lin</a></li>
 <li><a href="#window-chinese">The window in Chinese</a></li>
@@ -122,10 +134,20 @@ Built for SVA *Programming for Animators* (midterm).
 - **Ready to texture:** posts, rails and pickets are separate meshes (one material each), with UVs in scene units and the grain along every board.
 - **Presets:** Picket Fence, Ranch Rail, Privacy Fence, Wire Fence, Pipe Railing.
 
-### Both modes
+### Road
+- **Built like a real road.** Lanes either side of the centre line with a **crown** that drains rain (one-way roads slope to one side), paved shoulders, and optional **curbs and sidewalks**. The cross-section stays level side to side however steeply the road climbs.
+- **Banked curves.** Each curve banks (superelevation) from its radius and the **Design Speed**, capped at **Banking** and eased in and out along the road, the way real roads are run off.
+- **Over the terrain.** Pick a **Ground** mesh and the road follows it, smoothed over **Grade Smoothing** so it rolls instead of copying every bump, never steeper than **Max Grade**, with rounded crests, and never below the ground. **Side slopes** (embankments) run from its edges down or up to the ground.
+- **Lane markings,** modelled: centre line (none, dashed, solid or double solid; yellow or white), lane lines and edge lines, with real dash lengths (3 m dashes, 9 m gaps by default). Gravel and dirt roads get none.
+- **UVs for lane-marking textures:** U runs 0–1 across the paved width and V counts dash cycles along the road, so a painted road texture lines up with the lanes and the modelled dashes. (The highway in the gallery is painted entirely by such a texture.)
+- **Materials.** Every part (surface, paint, centre line, sidewalks, side slopes) gets its own material. **Road Surface** switches the surface between asphalt, concrete, cobblestone, gravel and dirt, live; **Road Material** puts the surface on your own shader instead.
+- **Closed loops** for ring roads and race tracks.
+- **Presets:** Country Road, City Street, Highway, One-Way Street, Cobblestone Lane, Gravel Track.
+
+### Every mode
 - **Live.** Everything is a Maya node network driven by the anchors' matrices, with no scripts running per frame and no constraints to break. Every setting is also on the build's group in the Channel Box.
 - **Any anchor:** objects, locators, groups and joints, vertices and faces; anchors inside moving groups follow too.
-- **Load, Rebuild, Bake** (to plain meshes with no history) and Delete for each build.
+- **Load, Rebuild, Bake** (to plain meshes with no history, keeping their materials) and Delete for each build.
 - **Five languages:** English, 简体中文, 粵語, Español, Français.
 - **Safe to use:** every action is one undo step, errors explain how to fix the problem, and cleanup only ever touches nodes the tool made.
 
@@ -143,7 +165,7 @@ Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **W
 
 ## Quick start
 1. Open **Cable Tool › Open Cable Tool** from Maya's menu bar.
-2. Pick a **Mode**: *Cable / Pipe* or *Fence*.
+2. Pick a **Mode**: *Cable / Pipe*, *Fence* or *Road*.
 3. Select two or more objects in the order the build should run, then press **Use Selection Order**.
 4. Press **Generate**, then move any of the objects: the build follows.
 
@@ -151,6 +173,7 @@ The [User guide](#user-guide) below explains each step in detail.
 
 **Demo scenes:** in the Script Editor, run `exec(open("/path/to/tests/demo_scene.py").read())`. It builds the utility poles and cyberpunk alley. Then call:
 - `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence with a double farm gate, a privacy fence and a pipe railing on a wall.
+- `demo("road")` for the countryside: a country road over the hills, a highway painted by a lane texture (the demo paints the texture from the road's own layout), a city street with sidewalks and a gravel track loop.
 - `demo("peer")` for the peer-review scene (cone, cube, sphere, cylinder).
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
@@ -164,10 +187,10 @@ Open it from **Cable Tool › Open Cable Tool** in Maya's menu bar, from the **C
 | Part | What it's for |
 |---|---|
 | **Menu bar** | **Edit:** Reset Settings, Load Selected, Delete Selected, Clear All. **Language:** five interface languages. **Help:** About. |
-| **Mode** | What to build: *Cable / Pipe* or *Fence*. *Road* is listed greyed out until it's built. |
+| **Mode** | What to build: *Cable / Pipe*, *Fence* or *Road*. |
 | **Route** | Where to build it: *Start*, an ordered list of *Waypoints* and *End*. |
 | **Preset** | Ready-made settings for the chosen mode, applied with **Apply**. |
-| **Settings** | Collapsible sections of sliders, tick boxes and mesh pickers. Click a section title to fold it. Hover over any control for a tooltip. |
+| **Settings** | Collapsible sections of sliders, tick boxes, dropdowns and pickers. Click a section title to fold it. Hover over any control for a tooltip. |
 | **Editing line** | Which build the sliders are editing right now. |
 | **Footer** | **Generate**, **Rebuild Current**, **Bake**, **Clear All**. |
 | **Status box** | The result of the last action. Green is done, grey is information, amber is a warning that says how to fix it, and red is an unexpected error (details in the Script Editor). |
@@ -182,7 +205,7 @@ A route is an ordered list of **anchors**: *Start*, any number of *Waypoints*, t
 | Anchor | How the build treats it |
 |---|---|
 | **Locator, group or joint** | The build passes exactly through its pivot. |
-| **Mesh object** | **Cable:** as Start or End, the cable attaches to the surface point facing the next anchor. As a waypoint, it drapes over the top. **Fence:** a post stands at its pivot. |
+| **Mesh object** | **Cable:** as Start or End, the cable attaches to the surface point facing the next anchor. As a waypoint, it drapes over the top. **Fence:** a post stands at its pivot. **Road:** the centre line passes its pivot. |
 | **Single vertex or face** | A **port**. A cable plugs in there and leaves along the surface normal. A fence post stands on that point. It keeps following if the mesh moves or deforms. |
 
 There are three ways to fill the route:
@@ -200,18 +223,19 @@ There are three ways to fill the route:
 |---|---|
 | Cable / Pipe | Single Pipe · Utility Line · Cyberpunk Tangle |
 | Fence | Picket Fence · Ranch Rail · Privacy Fence · Wire Fence · Pipe Railing |
+| Road | Country Road · City Street · Highway · One-Way Street · Cobblestone Lane · Gravel Track |
 
-3. A fence that should stand on terrain needs a ground: select the ground mesh and press **Get Selected** next to **Ground** (in the *Layout* section).
+3. A fence or road that should follow terrain needs a ground: select the ground mesh and press **Get Selected** next to **Ground** (in the *Layout* section).
 
 ### 3. Generate and adjust
-1. Press **Generate** (it reads *Generate Cable* or *Generate Fence*). The new build is selected, and the editing line shows its name.
+1. Press **Generate** (it reads *Generate Cable*, *Generate Fence* or *Generate Road*). The new build is selected, and the editing line shows its name.
 2. **Move anything on the route:** the build follows straight away. That includes moving, rotating or editing anchors, moving their parent groups, and moving or reshaping a picked Ground mesh.
 3. **Drag any slider:** the build being edited updates live. A whole drag is one undo step.
 4. **Use the Channel Box:** every setting is also an attribute on the build's group (for example `fence_01_GRP`). You can set, connect or key it there like any other channel.
 
 Almost every setting is live. Two cable settings, **Wire Count** and **Clamp Count**, change how many nodes there are. They rebuild the cable in place when you release the slider, and the status box says so.
 
-Each Generate makes a new build. To change the route of an existing build, edit the Route fields and press **Rebuild Current**. Rebuild Current also applies a newly picked Ground, Post, Picket or Clamp mesh.
+Each Generate makes a new build. To change the route of an existing build, edit the Route fields and press **Rebuild Current**. Rebuild Current also applies a newly picked Ground, Post Mesh, Picket Mesh, Clamp Mesh or Road Material.
 
 ### 4. Come back to a build later
 - **Load Selected** (Edit menu): select any part of a build (its mesh, curve or group) and choose *Load Selected*. The window switches to that build's mode and fills in its route, settings and picked meshes. The sliders then edit it. This works in a later session too, because everything is stored on the build's group.
@@ -280,6 +304,45 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 
 <br clear="right">
 
+### Road settings
+<img src="docs/images/window-road.png" alt="The Cable Tool window in Road mode" width="300" align="right">
+
+Lengths are in metres (one scene unit = 1 m), as in the real-world defaults below.
+
+| Section | Setting | What it does |
+|---|---|---|
+| **Layout** | Ground | A mesh for the road to run over. |
+| | Path Curve | 0 = straight runs between anchors, 1 = a smooth curve through them (the default: roads are built as curves). |
+| | Segment Length | Distance between cross-sections. Curves get more automatically, so their outer edge stays smooth. |
+| | Grade Smoothing | With a Ground: how far the rise and fall is smoothed, so the road rolls over the terrain. |
+| | Max Grade | With a Ground: the steepest climb, in percent (highways under ~6, country roads 10–12). Steeper ground is crossed on an embankment. |
+| | Side Slope · Road Depth | Embankment slope (horizontal per vertical: 2 = 1-in-2); how deep the bed is where there's no Ground. |
+| **Lanes** | Lanes Each Way · One Way | Lanes per direction; one-way roads have no centre line and slope to one side. |
+| | Lane Width · Shoulder Width | About 3–3.75 m lanes; paved strip outside them. |
+| | Crown | Cross-fall for drainage, in percent: about 2 paved, 4 gravel or dirt. |
+| | Banking · Design Speed | Most a curve may bank, in percent; the speed that sets how much each curve banks. 0 = flat. |
+| **Markings** | Lane Markings | Paint on or off. Never drawn on gravel or dirt. |
+| | Centre Line | None, Dashed (overtaking allowed), Solid or Double Solid. |
+| | Yellow Centre Line · Edge Lines | Yellow (North America) or white (Europe); solid lines along the lanes' outer edges. |
+| | Line Width · Dash Length · Dash Gap | Paint width (0.1–0.15 m); 3 m dashes with 9 m gaps by default. |
+| **Sidewalks** | Sidewalks · Curb Height · Sidewalk Width | A curb (about 0.15 m) and a sidewalk on each side, sloping 2% toward the road. |
+| **Surface** | Road Material | Your own material for the road surface (see below). |
+| | Road Surface | Asphalt, Concrete, Cobblestone, Gravel or Dirt: the built-in material's colour and roughness, live. |
+
+**Things to know:**
+- **Changing the road's material:**
+  - **Built in:** pick a **Road Surface**. The colour updates live; gravel and dirt also drop the paint, since paint doesn't hold on them.
+  - **Your own:** select a material in the Hypershade (or any object that uses it), press **Get Selected** next to **Road Material**, then **Rebuild Current**. The surface goes on that material; the paint, sidewalks and side slopes keep theirs. Clear the field and Rebuild to go back.
+  - **Per part:** every part is its own mesh with its own material (`<name>_surface_MTL`, `_markings_MTL`, `_centreLine_MTL`, `_sidewalks_MTL`, `_verge_MTL`), which you can edit or reassign like any other.
+- **Texturing lane markings:** the surface's UVs run U 0 → 1 across the paved width (left edge to right edge, shoulders included) and V one unit per dash cycle (Dash Length + Dash Gap), with each dash starting at V = 0. Paint one dash cycle of the road's cross-section into a texture, turn **Lane Markings** off, and pick the material as **Road Material**. `lane_texture()` in `tests/demo_scene.py` paints such a texture from a road's own settings. Paint, sidewalks and side slopes have UVs in metres.
+- **Over a Ground,** the road is never lower than the ground under it. Where the terrain dips it is carried on an embankment; where it rises it climbs no steeper than Max Grade. Real roads also cut through hills, but Maya would draw the terrain over a road sunk into it, so this tool raises rather than cuts.
+- **Without a Ground,** the road follows the anchors' heights, and its bed drops by Road Depth at the sides.
+- **Closing a loop:** end the route on the anchor it started from.
+- **Very tight bends:** on a bend tighter than half the road's width, the inside lanes pinch to a point rather than fold over. No real road turns that tight; spread the anchors out.
+- **Separate meshes:** `<name>_surface_geo`, `_markings_geo`, `_centreLine_geo`, `_sidewalks_geo` and `_verge_geo` (side slopes and end caps).
+
+<br clear="right">
+
 ### Recipes
 <a id="recipe-wall-pipe"></a>
 
@@ -345,11 +408,43 @@ A **Clamp Mesh** should be modelled at the origin around a tube of radius 1 lyin
 3. Generate, then adjust **Post Spacing** and **Rail Count**.
 </details>
 
+<a id="recipe-country-road"></a>
+
+<details>
+<summary><b>A country road over the hills</b></summary>
+
+1. Create locators along the line the road should take. A few are enough: the road curves through them.
+2. Select them in order, press **Use Selection Order**, choose mode *Road* and preset *Country Road*, and pick the terrain as **Ground**.
+3. Generate. The road follows the hills, rounded over crests and on embankments over the dips.
+4. For gentler, more highway-like grades, lower **Max Grade** and raise **Grade Smoothing**. Raise **Design Speed** to bank the curves more.
+</details>
+
+<a id="recipe-city-street"></a>
+
+<details>
+<summary><b>A city street with sidewalks</b></summary>
+
+1. Choose mode *Road*, preset *City Street* (two lanes each way, double yellow line, curbs and 2.5 m sidewalks).
+2. Pick the route and Generate. For one-way traffic, tick **One Way**.
+3. For a European look, untick **Yellow Centre Line**, set **Centre Line** to *Dashed* and shorten **Dash Gap**.
+</details>
+
+<a id="recipe-road-texture"></a>
+
+<details>
+<summary><b>A road painted by your own texture</b></summary>
+
+1. Build the road and note its lanes, shoulders and dash cycle.
+2. Paint one dash cycle of the cross-section into an image: left paved edge at the left of the image, right edge at the right, the dash starting at the bottom. Or call `lane_texture(settings, path)` from `tests/demo_scene.py`.
+3. Make a material with the image, select it in the Hypershade and press **Get Selected** next to **Road Material**.
+4. Untick **Lane Markings** and press **Rebuild Current**. The painted lines follow the lanes round every curve and repeat with the dash cycle.
+</details>
+
 ### Animating
 Settings are ordinary channels on the build's group, so any of them can be keyed in the Channel Box. Typical uses:
 - **Opening a gate:** key **Gate Swing**, for example 0 at frame 1 and −90 at frame 24. Only the gate is rebuilt each frame, so playback stays fast.
 - **A cable pulled tight:** key **Sag**.
-- **A fence being built:** key or animate the End anchor, and posts appear as it moves.
+- **A fence or road being built:** key or animate the End anchor, and posts (or the road) appear as it moves.
 
 Keys survive **Rebuild Current**, and a rebuild caused by Wire Count or Clamp Count.
 
@@ -362,13 +457,15 @@ The tool speaks English, 简体中文, 粵語, Español and Français. Switch fr
 | *Set both a Start and an End anchor* | Fill both fields, or select at least two anchors and press **Use Selection Order**. |
 | *'…' is not an object or locator in the scene* | The anchor was renamed or deleted. Pick it again with **Get Selected**. |
 | *'…' is used twice in a row* | Two neighbouring anchors are the same object. Remove one of them. |
-| *… isn't loaded, and the cable solver / fence builder lives in it* | Load `cableTool.py` in **Windows › Settings/Preferences › Plug-in Manager**. |
+| *… isn't loaded, and the cable solver / fence builder / road builder lives in it* | Load `cableTool.py` in **Windows › Settings/Preferences › Plug-in Manager**. |
 | *Could not load Maya's 'sweep' plugin* | Enable **sweep** in the Plug-in Manager (cables need it). |
 | *Nothing to rebuild / bake yet* | Generate first, or select a build and use **Edit › Load Selected**. |
 | *'…' has no mesh, so it can't be used as Ground* | Pick a polygon mesh for Ground, Post Mesh, Picket Mesh or Clamp Mesh. |
+| *'…' is not a material and has none assigned, so it can't be used as Road Material* | Select the material itself in the Hypershade, or an object that has it assigned. |
 
 - **A build is invisible:** two neighbouring anchors may sit on the same spot. Move one; the status box warns about this on Generate.
-- **Maya won't unload the plugin:** it can't while any cable or fence exists, even in the undo queue. Start a new scene first.
+- **Maya won't unload the plugin:** it can't while any cable, fence or road exists, even in the undo queue. Start a new scene first.
+- **A road sits high above a valley or a hillside:** that's the embankment that keeps it above the ground and within Max Grade. Route it along the hillside, or raise Max Grade.
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
@@ -431,8 +528,36 @@ A second `MPxNode` that makes the meshes itself, rather than with Sweep Mesh, so
 - **Custom Post / Picket meshes** are copied in with their UVs and locked normals, so their hard and soft edges survive.
 - **Speed:** face building uses plain Python maths on 3-vectors instead of numpy calls, which made the yard fence (1,300 parts) about 3× faster to drag.
 
+### Road network
+```
+anchor.worldMatrix (+ mesh for a vertex/face) ─┐                   ┌─▶ outSurface    ─▶ <name>_surface_geo
+ground.outMesh + ground.worldMatrix ───────────┼─▶ roadToolBuilder ┼─▶ outMarkings   ─▶ <name>_markings_geo
+road group settings ───────────────────────────┘                   ├─▶ outCentreLine ─▶ <name>_centreLine_geo
+                                                                   ├─▶ outSidewalks  ─▶ <name>_sidewalks_geo
+                                                                   ├─▶ outVerge      ─▶ <name>_verge_geo
+                                                                   └─▶ outSurfaceColor, outSurfaceRoughness,
+                                                                       outCentreColor ─▶ the built-in materials
+```
+#### The road builder (`roadToolBuilder`)
+A third `MPxNode`, built like the fence builder. Every time an input changes it:
+
+1. **Lays out the centre line:** anchors joined by a Catmull-Rom curve (*Path Curve*), resampled at *Segment Length*. Each stretch counts as its length plus the road's half-width × how far it turns, so bends get more cross-sections and the outer edge stays smooth.
+2. **Banks the curves:** curvature from the change of heading per metre, smoothed over about 30 m; superelevation = ½ v² / (127 R) (v in km/h, R in m: half the sideways pull taken by banking), capped at *Banking* and eased in and out. On a two-way road the outer half rotates from its crown through flat to the bank, then the whole road tilts as one plane, the way real superelevation is run off.
+3. **Sets the height:** without a Ground, the curve's own height. With one:
+   - **Need:** at each station, the ground under five points across the paved width, less the cross-section's own fall there, plus 3 cm, gives the lowest the centre line may be.
+   - **Grade:** raised (never lowered) until no step climbs faster than *Max Grade*.
+   - **Smoothing:** averaged over *Grade Smoothing* and lifted back to the need, many times, which converges on a smooth profile that stays above the ground.
+   - **Crests:** smoothing leaves a point where the profile is held up by a crest. What smoothing shaved off is added back as a smooth bump, so crests become rounded vertical curves (the grade changes by at most about 1.4% per metre in the tests).
+4. **Builds the meshes:** a level cross-section at every station (lanes, crown, shoulders; then curbs and sidewalks) on the horizontal side vector, so a climbing road never tilts sideways. Side slopes run from the outer edge at *Side Slope* to wherever they meet the ground (a few ray casts per station). Open ends are closed with the cross-section.
+5. **Paints the markings:** each line is a strip a few millimetres above the surface, following its crown and bank; dashes are cut at exact arc lengths along the road.
+
+**Materials** come from the node too: `outSurfaceColor` and `outSurfaceRoughness` follow *Road Surface*, and `outCentreColor` follows *Yellow Centre Line*. Those outputs depend only on those settings, so switching the surface recolours the material without rebuilding a mesh. On Bake the materials are kept, holding their last colours.
+
+**UVs:** the surface's U is (offset across + half the paved width) ÷ the paved width; V is the distance driven (including the climb) ÷ the dash cycle. A drag on the 360 m demo country road updates in about 40 ms.
+
 ### Shared parts
 - **Rebuild keeps animation:** keys or other connections driving a build's settings are unplugged before Rebuild deletes the old group and plugged into the new one, so an animated Gate Swing or Sag survives. A build made by an older version reads newer settings as their defaults, and the first change to one rebuilds it with them.
+- **Settings with named choices** (*Centre Line*, *Road Surface*) are enum attributes on the group, so the Channel Box shows their names, and dropdowns in the window.
 - **Modes:** `generators.GENERATORS` lists every mode. The dropdown, the settings panels, the pickers and the Generate button are built from it. A mode declares its settings, presets and picked meshes, and builds its own network; the shared base handles the group, stored settings, anchors, Load, Rebuild, Bake and Delete.
 - **Scene safety:**
   - **Undo:** one undo chunk per action, and a whole slider drag is a single Ctrl+Z.
@@ -452,24 +577,25 @@ CableTool/                       the Maya module (point Maya here)
 ├── CableTool.mod
 ├── install.py                   drag-and-drop installer
 ├── icons/cableTool.png          menu / shelf icon
-├── plug-ins/cableTool.py        plugin entry point: command, both nodes, menu
+├── plug-ins/cableTool.py        plugin entry point: command, the three nodes, menu
 └── scripts/cable_tool/          the tool, as a Python package
     ├── config.py                settings table (defaults, ranges, tips), sanitising
     ├── solver.py                cableToolSolver: rest shape + rope physics
     ├── fence.py                 fenceToolBuilder: fence layout and meshes
+    ├── road.py                  roadToolBuilder: road layout, profile and meshes
     ├── route.py                 anchors: objects, locators, vertices, faces
     ├── nodes.py                 tagging, cleanup, undo, Sweep Mesh plugin
     ├── ui.py                    the Qt window
     ├── menu.py                  the Cable Tool menu in Maya's menu bar
     ├── i18n.py, locales/        languages
     ├── dev.py                   reload helper, list of interface strings
-    └── generators/              one generator per mode (registry, base, cable, fence, planned)
+    └── generators/              one generator per mode (registry, base, cable, fence, road)
 README.md, README.zh-CN.md       this guide, in English and Simplified Chinese
 docs/images/                     screenshots for this README
 tests/
-├── test_cable_rig.py            57 headless rig, physics, fence, gate and language tests
+├── test_cable_rig.py            68 headless rig, physics, fence, gate, road and language tests
 ├── test_ui.py                   headless window test
-└── demo_scene.py                utility poles, cyberpunk alley, farm, peer-review scene
+└── demo_scene.py                utility poles, cyberpunk alley, farm, countryside, peer-review scene
 ```
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
@@ -492,9 +618,17 @@ They cover:
   - **Routes and parts:** closed rings without a doubled post, pickets on and off, custom post meshes, repeatable wear.
   - **Presets and undo:** every preset builds and loads back, and a build is one undo step.
   - **Gates:** a gate in its run between thicker gate posts with no rails behind it, swinging live and from keys, double gates, the closing gate of a yard, keys surviving Rebuild, and a fence from 0.7.0 upgrading when given a gate.
+- **Road:**
+  - **Cross-section:** width from lanes and shoulders, the crown's fall, a one-way road's single slope, curbs and sidewalks at the right height.
+  - **Curves:** banking toward the inside of a curve, capped at Banking; the cross-section maths on its own.
+  - **Ground:** never below the ground, never steeper than Max Grade, small bumps smoothed away and crests rounded; side slopes reach the ground; moving the ground moves the road.
+  - **Markings and UVs:** dashes at the dash rhythm, centre line styles, paint just above the surface and none on gravel; U 0–1 across, V in dash cycles.
+  - **Materials:** Road Surface recolours live; your own material (picked as a material or as an object using it) is used and survives Rebuild, and deleting the road leaves it alone.
+  - **Shapes and loops:** every part faces up or out, including the end caps; a closed route makes a loop with no ends.
+  - **Presets and Bake:** every preset builds and loads back, and Bake keeps the materials.
 - **Scene safety:** undo, cleanup and the installer.
 - **Languages:** every string translated in every language, with its placeholders.
-- **Window:** a full session in each of the five languages, including building, gating and loading a fence.
+- **Window:** a full session in each of the five languages, including building, gating and loading a fence, and building a road, switching its surface from the dropdown, picking a material from the Hypershade and loading it back.
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
@@ -507,7 +641,12 @@ They cover:
   - **Steep slopes:** a gate hangs level and clears the higher post's ground, so on a steep slope the gap under its low end grows, as on a real gate.
   - **No collision:** a swinging gate doesn't stop at the ground or at nearby fences.
   - **One gate per fence:** for a second gate, build a second fence.
-- **Unloading:** Maya won't unload the plugin while any cable or fence exists (even in the undo queue). Start a new scene first.
+- **Roads:**
+  - **Fill only:** over a Ground the road is raised onto embankments but never cut into a hill, because Maya would draw the terrain over it. On a hillside it sits at the level of the uphill edge, so its downhill embankment can be tall. Carving the terrain is a possible later step.
+  - **No junctions:** each road is one route; crossings and T-junctions aren't joined.
+  - **Scale:** settings are in real-world metres (and banking runs off over about 30 m), so the scene should use 1 unit = 1 m.
+  - **Only the surface** has a Road Material picker; the other parts' materials can be edited or reassigned in Maya.
+- **Unloading:** Maya won't unload the plugin while any cable, fence or road exists (even in the undo queue). Start a new scene first.
 - **Platforms:** tested in Maya 2026 on macOS only.
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
@@ -517,13 +656,15 @@ Cables, fences and roads are all built along a route, so the mode architecture l
 
 | Building block | Cable / Pipe | Fence | Road |
 |---|---|---|---|
-| Route, waypoints, live updates | ✅ | ✅ | planned |
-| Main geometry | ✅ round tube (Sweep Mesh) | ✅ board or round rails | flat, wide surface |
-| Parts along the length | ✅ clamps | ✅ posts and pickets | lamp posts, markers |
-| Length-wise UVs | ✅ ribbed / striped | ✅ wood grain | **lane markings** |
-| Hard part | ✅ contact and attachment | ✅ uneven ground, corners, animated gates | terrain conforming, banking, intersections |
+| Route, waypoints, live updates | ✅ | ✅ | ✅ |
+| Main geometry | ✅ round tube (Sweep Mesh) | ✅ board or round rails | ✅ lanes, shoulders, curbs, sidewalks |
+| Parts along the length | ✅ clamps | ✅ posts and pickets | ✅ painted markings |
+| Length-wise UVs | ✅ ribbed / striped | ✅ wood grain | ✅ **lane markings** |
+| Hard part | ✅ contact and attachment | ✅ uneven ground, corners, animated gates | ✅ terrain following, banking · intersections still to come |
 
-Next: basic Road mode. For Fence, possible later steps: more than one gate per fence, and stopping a swinging gate at the ground.
+All three modes are built. Possible later steps:
+- **Road:** junctions, carving the terrain so roads can cut through hills, bridges, and lamp posts or barriers along the road.
+- **Fence:** more than one gate per fence, and stopping a swinging gate at the ground.
 
 ---
 
@@ -572,7 +713,7 @@ The midterm's pitch, plan, progress logs with reflections, and peer feedback.
 **Stretch**
 1. ✅ Multi-wire bundles and variation.
 2. ✅ Fence mode: posts, rails and pickets. It went past the "flat ground" goal: it stands on uneven ground, closes into rings and takes custom parts.
-3. Basic Road mode: flat swept ribbon with lane-marking UVs.
+3. ✅ Road mode: it went past the "flat swept ribbon with lane-marking UVs" goal: lanes with a crown, banked curves, terrain following with embankments, painted markings, sidewalks and selectable materials.
 </details>
 
 <a id="log-cable"></a>
@@ -719,6 +860,56 @@ The request was cables that look like power lines or a tangle of cyberpunk wirin
 - **A bug found and fixed:** looking at a keyed gate in the window raised a question: what happens on Rebuild? Deleting the old group would have deleted its animation. Rebuild now carries keys and connections across, for cables too.
 
 **Checked by tests:** 6 new tests (57 in all) and gate steps in the window test.
+</details>
+
+<a id="log-road"></a>
+
+<details>
+<summary><b>Progress log: Road mode (0.9.0)</b></summary>
+
+**Design.** The plan said "a flat swept ribbon with lane-marking UVs". A flat ribbon would read as a road from far away, but not up close or over terrain. The goal became a road built the way a road engineer would build it, kept to what a single route can do (no junctions). Like Fence, it is a plugin node (`roadToolBuilder`) that writes its meshes on every change, with the rest of the tool shared through the mode architecture.
+
+**Real-world rules it follows:**
+
+| Real roads | In the tool |
+|---|---|
+| Lanes are about 3–3.75 m; markings 0.1–0.15 m wide; US dashes 3 m with 9 m gaps | The defaults |
+| A crown of about 2% drains rain; gravel and dirt about 4% | *Crown*; the Gravel Track preset uses 4% |
+| Curves bank by about v² / 127R, capped (6–8%), and the bank is run off gradually | *Banking* and *Design Speed*, eased over ~30 m |
+| The cross-section stays level side to side on a climb | Built on the horizontal side vector |
+| Grades are limited (highways ~5%, country roads ~10%), and crests are rounded vertical curves | *Max Grade*, crests rounded |
+| Embankments and cuts at about 1-in-2 | *Side Slope* |
+| Paint isn't laid on gravel or dirt | No markings on those surfaces |
+
+**Requested during the build: changing the road's material.** That became two options:
+- **Road Surface,** a dropdown that recolours the built-in material live, through colour outputs on the node.
+- **Road Material,** a picker that takes your own material or an object using it.
+
+To support them:
+- **Dropdowns:** the tool gained settings with named choices (enum attributes, shown as dropdowns).
+- **Picker:** the picker now accepts materials picked in the Hypershade.
+- **Bake:** keeps the materials.
+
+**Tested in Maya, and what changed:**
+
+| Seen in Maya | Change |
+|---|---|
+| On steep demo terrain the road climbed at 29.5% | New *Max Grade* (10% by default): the profile is raised until no step is steeper |
+| Where the road was held up by a crest, the grade flipped from +8% to −8% in one metre | Crests rounded into vertical curves; the tests now check the grade never changes by more than 2% in a metre |
+| Fresh-asphalt colour read as black in the viewport | Weathered asphalt (0.09 instead of 0.045) |
+| The outer edge of a hairpin was faceted: cross-sections were spaced along the centre line only | Cross-sections spaced by how far the outer edge travels, so bends get more |
+| The end of an open road was drawn black | The end cap faced inward; it is oriented by its Newell normal and tested |
+| A city street on a hillside sat on a tall embankment | A real limit of not cutting into the ground: documented under Known limits, and the demo's street moved to flatter ground |
+| The Road Surface dropdown failed to connect in PySide6 | Connected through a lambda |
+
+**Measured:** a 360 m country road over the hills updates in about 40 ms while an anchor is dragged; the four-road demo builds in about 0.4 s.
+
+**Checked by tests:** 11 new road tests (68 in all) and road steps in the window test, listed under [Testing](#testing).
+
+#### Reflections
+- **Real-world rules made better defaults than eyeballing.** Lane widths, dash lengths, crown, banking and grade limits are all published standards. Using them gave a road that looks right at first try, and each setting's tooltip can say what a real value is.
+- **The tests caught what the viewport hid.** The 16%-in-a-metre grade flip on crests was hard to see in a wide shot, but a test of the grade's change found it at once. The reverse also happened: the black end cap was obvious in a screenshot and invisible to every test, until I added one.
+- **A constraint of the scene shapes the design.** Maya can't hide terrain under a road, so the road can't cut into hills. Making it fill-only was the honest choice, and documenting the tall embankments it causes is better than hiding them.
 </details>
 
 <a id="lessons"></a>

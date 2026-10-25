@@ -53,6 +53,8 @@ def interface_strings():
     for spec in config.DEFAULTS.values():
         add(spec["label"])
         add(spec["tip"])
+        for choice in spec.get("choices", ()):
+            add(choice)
     for generator in generators.GENERATORS:
         for text in (generator.label, generator.summary, generator.noun,
                      generator.noun.capitalize()):

@@ -8,7 +8,7 @@ never disagree.
 import math
 
 TOOL_NAME = "Cable Tool"
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 
 # Attribute added to every node the tool creates. Its value is the UUID
 # of the cable's group, so cleanup finds nodes by tag, never by name.
@@ -300,6 +300,121 @@ DEFAULTS = {
                              "UVs are in scene units with the grain along "
                              "each board, so wood tiles evenly on every "
                              "part."},
+    "roadCurve": {"default": 1.0, "slider": (0.0, 1.0), "field": (0.0, 1.0),
+                  "type": "float", "rebuild": False, "label": "Path Curve",
+                  "tip": "0 = straight runs between anchors, 1 = a smooth "
+                         "curve through them, as roads are built."},
+    "roadDetail": {"default": 1.0, "slider": (0.25, 5.0),
+                   "field": (0.05, 100.0), "type": "float", "rebuild": False,
+                   "label": "Segment Length",
+                   "tip": "Distance between cross-sections along the road. "
+                          "Lower is smoother in curves, and heavier."},
+    "roadSmooth": {"default": 20.0, "slider": (0.0, 100.0),
+                   "field": (0.0, 1000.0), "type": "float", "rebuild": False,
+                   "label": "Grade Smoothing",
+                   "tip": "With a Ground: the distance over which the road's "
+                          "rise and fall is smoothed, so it rolls over the "
+                          "terrain instead of copying every bump. It never "
+                          "dips below the ground."},
+    "roadGrade": {"default": 10.0, "slider": (2.0, 20.0),
+                  "field": (0.5, 100.0), "type": "float", "rebuild": False,
+                  "label": "Max Grade",
+                  "tip": "With a Ground: the steepest the road may climb, in "
+                         "percent. Highways keep under about 6, country "
+                         "roads 10 to 12. Where the ground is steeper the "
+                         "road is raised on an embankment."},
+    "roadSlope": {"default": 2.0, "slider": (0.5, 4.0), "field": (0.1, 20.0),
+                  "type": "float", "rebuild": False, "label": "Side Slope",
+                  "tip": "Embankments and cuts at the road's sides: "
+                         "horizontal distance per unit of height. 2 = a "
+                         "1-in-2 slope, a common earthwork."},
+    "roadDepth": {"default": 0.3, "slider": (0.0, 2.0), "field": (0.0, 50.0),
+                  "type": "float", "rebuild": False, "label": "Road Depth",
+                  "tip": "How far the road's bed drops at its sides when "
+                         "there is no Ground; with a Ground, the side slopes "
+                         "reach down to it instead."},
+    "laneCount": {"default": 1, "slider": (1, 4), "field": (1, 8),
+                  "type": "int", "rebuild": False, "label": "Lanes Each Way",
+                  "tip": "Lanes in each direction (in all, for a one-way "
+                         "road)."},
+    "oneWay": {"default": 0, "slider": (0, 1), "field": (0, 1),
+               "type": "bool", "rebuild": False, "label": "One Way",
+               "tip": "All lanes run one way: no centre line, and the road "
+                      "slopes to one side instead of having a crown."},
+    "laneWidth": {"default": 3.5, "slider": (2.5, 4.5), "field": (0.5, 20.0),
+                  "type": "float", "rebuild": False, "label": "Lane Width",
+                  "tip": "Width of one lane. Real lanes are about 3 to 3.75 "
+                         "m (10 to 12 ft)."},
+    "shoulderWidth": {"default": 0.5, "slider": (0.0, 3.0),
+                      "field": (0.0, 20.0), "type": "float",
+                      "rebuild": False, "label": "Shoulder Width",
+                      "tip": "Paved strip outside the outer lanes on each "
+                             "side."},
+    "roadCrown": {"default": 2.0, "slider": (0.0, 6.0), "field": (0.0, 20.0),
+                  "type": "float", "rebuild": False, "label": "Crown",
+                  "tip": "Cross-fall that drains rain off the road, in "
+                         "percent: paved roads about 2, gravel and dirt "
+                         "about 4."},
+    "roadBank": {"default": 6.0, "slider": (0.0, 12.0), "field": (0.0, 30.0),
+                 "type": "float", "rebuild": False, "label": "Banking",
+                 "tip": "Most a curve may bank (superelevation), in percent. "
+                        "How much each curve banks comes from its radius and "
+                        "the Design Speed. 0 = no banking."},
+    "roadSpeed": {"default": 60.0, "slider": (10.0, 130.0),
+                  "field": (0.0, 400.0), "type": "float", "rebuild": False,
+                  "label": "Design Speed",
+                  "tip": "Speed the road is built for, in km/h. Faster roads "
+                         "bank their curves more."},
+    "markings": {"default": 1, "slider": (0, 1), "field": (0, 1),
+                 "type": "bool", "rebuild": False, "label": "Lane Markings",
+                 "tip": "Paint lines on the road. Gravel and dirt roads "
+                        "never get them."},
+    "centreLine": {"default": 1, "slider": (0, 3), "field": (0, 3),
+                   "type": "enum", "rebuild": False, "label": "Centre Line",
+                   "choices": ("None", "Dashed", "Solid", "Double Solid"),
+                   "tip": "The line between the two directions. Dashed: "
+                          "overtaking allowed; solid or double solid: not."},
+    "yellowCentre": {"default": 1, "slider": (0, 1), "field": (0, 1),
+                     "type": "bool", "rebuild": False,
+                     "label": "Yellow Centre Line",
+                     "tip": "Yellow, as in North America; off for white, as "
+                            "in Europe."},
+    "edgeLines": {"default": 1, "slider": (0, 1), "field": (0, 1),
+                  "type": "bool", "rebuild": False, "label": "Edge Lines",
+                  "tip": "Solid lines along the outer edges of the lanes."},
+    "lineWidth": {"default": 0.12, "slider": (0.05, 0.3),
+                  "field": (0.01, 2.0), "type": "float", "rebuild": False,
+                  "label": "Line Width",
+                  "tip": "Width of a painted line, about 0.1 to 0.15 m."},
+    "dashLength": {"default": 3.0, "slider": (0.5, 10.0),
+                   "field": (0.05, 100.0), "type": "float", "rebuild": False,
+                   "label": "Dash Length",
+                   "tip": "Length of each dash. US roads: 3 m (10 ft) dashes "
+                          "with 9 m gaps."},
+    "dashGap": {"default": 9.0, "slider": (0.5, 20.0), "field": (0.05, 200.0),
+                "type": "float", "rebuild": False, "label": "Dash Gap",
+                "tip": "Gap between dashes. One dash + one gap is one "
+                       "texture tile along the road."},
+    "sidewalks": {"default": 0, "slider": (0, 1), "field": (0, 1),
+                  "type": "bool", "rebuild": False, "label": "Sidewalks",
+                  "tip": "A curb and a raised sidewalk along each side, as "
+                         "on a city street."},
+    "curbHeight": {"default": 0.15, "slider": (0.0, 0.4),
+                   "field": (0.0, 5.0), "type": "float", "rebuild": False,
+                   "label": "Curb Height",
+                   "tip": "Height of the curb above the road, about 0.15 m."},
+    "sidewalkWidth": {"default": 2.0, "slider": (0.5, 5.0),
+                      "field": (0.05, 50.0), "type": "float",
+                      "rebuild": False, "label": "Sidewalk Width",
+                      "tip": "Width of each sidewalk, including the curb."},
+    "roadSurface": {"default": 0, "slider": (0, 4), "field": (0, 4),
+                    "type": "enum", "rebuild": False, "label": "Road Surface",
+                    "choices": ("Asphalt", "Concrete", "Cobblestone",
+                                "Gravel", "Dirt"),
+                    "tip": "What the road is made of: sets the built-in "
+                           "material's colour and roughness, live. Gravel "
+                           "and dirt get no paint. Pick a Road Material to "
+                           "use your own shader instead."},
 }
 
 

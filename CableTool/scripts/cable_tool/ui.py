@@ -251,9 +251,47 @@ class CheckField(QtWidgets.QWidget):
         self.box.blockSignals(False)
 
 
+class ChoiceField(QtWidgets.QWidget):
+    """A dropdown with the same signals as SliderField, for settings with
+    named choices. Its value is the choice's index."""
+
+    valueChanged = QtCore.Signal(object)
+    dragStarted = QtCore.Signal()
+    dragFinished = QtCore.Signal()
+
+    def __init__(self, key, parent=None):
+        super(ChoiceField, self).__init__(parent)
+        spec = DEFAULTS[key]
+        self.key = key
+        label = QtWidgets.QLabel(tr(spec["label"]))
+        label.setMinimumWidth(90)
+        self.combo = QtWidgets.QComboBox()
+        self.combo.addItems([tr(choice) for choice in spec["choices"]])
+        for widget in (label, self.combo):
+            widget.setToolTip(tr(spec["tip"]))
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(label)
+        layout.addWidget(self.combo, 1)
+        self.combo.currentIndexChanged.connect(
+            lambda index: self.valueChanged.emit(index))
+        self.set_value(spec["default"])
+
+    def value(self):
+        return self.combo.currentIndex()
+
+    def set_value(self, value):
+        self.combo.blockSignals(True)
+        self.combo.setCurrentIndex(int(value))
+        self.combo.blockSignals(False)
+
+
 def make_field(key):
-    if DEFAULTS[key]["type"] == "bool":
+    kind = DEFAULTS[key]["type"]
+    if kind == "bool":
         return CheckField(key)
+    if kind == "enum":
+        return ChoiceField(key)
     return SliderField(key)
 
 
@@ -621,7 +659,9 @@ class CableToolWindow(QtWidgets.QWidget):
     def on_pick_extra(self, field):
         # Like on_pick_anchor, but any object will do, and an empty
         # selection clears the field (back to the default).
-        selection = cmds.ls(selection=True, transforms=True) or []
+        # A material (picked in the Hypershade) will do too.
+        selection = (cmds.ls(selection=True, transforms=True)
+                     or cmds.ls(selection=True, materials=True) or [])
         field.set_text(selection[0] if selection else "")
         if selection:
             self.set_status(tr("{0} set to {1}; it applies on Generate or "

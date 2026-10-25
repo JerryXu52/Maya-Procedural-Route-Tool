@@ -1,7 +1,7 @@
 """Headless smoke test for the Cable Tool window. Run with Maya's Python:
 
     QT_QPA_PLATFORM=offscreen \\
-    /Applications/Autodesk/maya2027/Maya.app/Contents/bin/mayapy tests/test_ui.py
+    /Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy tests/test_ui.py
 
 Separate from test_cable_rig.py because a widget test needs a
 QApplication created *before* maya.standalone starts.
@@ -51,10 +51,10 @@ def run():
     assert win is not None and win.isVisible()
     assert ui.show() is win  # a second call raises the same window
 
-    # Cable / Pipe and Fence can be picked; Road is listed greyed out.
+    # Cable / Pipe, Fence and Road can all be picked.
     items = [win.mode_box.model().item(i)
              for i in range(win.mode_box.count())]
-    assert [item.isEnabled() for item in items] == [True, True, False]
+    assert [item.isEnabled() for item in items] == [True, True, True]
     assert win.generate_button.text() == "Generate Cable"
     assert win.mode_stack.count() == 3
 
@@ -166,6 +166,38 @@ def run():
     gate = cmds.ls(fence.group + "|*_gate_geo")[0]
     assert cmds.polyEvaluate(gate, face=True) > 0
     assert cmds.getAttr(fence.group + ".gateSwing") == 70.0
+    # Road mode: dropdown settings and a material picker.
+    win.mode_box.setCurrentIndex(2)
+    assert win.generate_button.text() == "Generate Road"
+    road_fields = win.fields["road"]
+    cmds.select(ground)
+    win.on_pick_extra(win.extra_fields["road"]["ground"])
+    win.on_apply_preset("City Street")
+    assert road_fields["centreLine"].value() == 3  # Double Solid
+    assert road_fields["centreLine"].combo.currentText() == "Double Solid"
+    win.on_generate()
+    assert win.status.toPlainText().startswith("[OK]"), \
+        win.status.toPlainText()
+    street = win.current
+    assert street.mode == "road" and cmds.getAttr(street.group + ".sidewalks")
+    road_fields["roadSurface"].combo.setCurrentIndex(1)  # Concrete
+    assert cmds.getAttr(street.group + ".roadSurface") == 1
+    road_fields["laneCount"].field.setValue(3)
+    assert cmds.getAttr(street.group + ".laneCount") == 3
+    # A material picked in the Hypershade (not an object) is accepted.
+    mine = cmds.shadingNode("lambert", asShader=True, name="myRoad")
+    cmds.select(mine)
+    win.on_pick_extra(win.extra_fields["road"]["roadMaterial"])
+    assert win.extras()["roadMaterial"] == "myRoad", win.extras()
+    win.on_rebuild()
+    assert win.status.toPlainText().startswith("[OK]"), \
+        win.status.toPlainText()
+    surface = cmds.ls(win.current.group + "|*_surface_geo")[0]
+    group = cmds.listConnections(cmds.listRelatives(surface, shapes=True)[0],
+                                 type="shadingEngine")[0]
+    assert cmds.listConnections(group + ".surfaceShader") == [mine]
+    street = win.current
+
     # Loading the cable switches the window back to Cable / Pipe.
     cmds.select(geo)
     win.on_load_selected()
@@ -174,6 +206,11 @@ def run():
     win.on_load_selected()
     assert win.mode_box.currentData() == "fence"
     assert win.extras()["ground"] == "ground"
+    cmds.select(street.group)
+    win.on_load_selected()
+    assert win.mode_box.currentData() == "road"
+    assert win.extras()["roadMaterial"] == "myRoad"
+    assert win.fields["road"]["roadSurface"].value() == 1
     win.mode_box.setCurrentIndex(0)
     cmds.select(geo)
     win.on_load_selected()

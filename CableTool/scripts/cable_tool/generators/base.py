@@ -227,6 +227,7 @@ class BaseGenerator(object):
                 for node in [copy] + (cmds.listRelatives(
                         copy, shapes=True, fullPath=True) or []):
                     nodes.untag(node)
+            self._keep_for_bake()
             self.delete()
         return cmds.ls(baked, long=True)[0]
 
@@ -237,6 +238,10 @@ class BaseGenerator(object):
         return count
 
     # -- for subclasses -----------------------------------------------------
+    def _keep_for_bake(self):
+        """Untag any of the build's nodes the baked meshes still need
+        (their materials, say), so deleting the build leaves them."""
+
     def _check_dependencies(self):
         """Raise CableToolError if a plugin the mode needs is missing."""
 
@@ -258,6 +263,12 @@ class BaseGenerator(object):
             if spec["type"] == "bool":
                 cmds.addAttr(self.group, longName=key, niceName=spec["label"],
                              attributeType="bool",
+                             defaultValue=spec["default"])
+            elif spec["type"] == "enum":
+                # Named choices, so the Channel Box shows names too.
+                cmds.addAttr(self.group, longName=key, niceName=spec["label"],
+                             attributeType="enum",
+                             enumName=":".join(spec["choices"]),
                              defaultValue=spec["default"])
             else:
                 low, high = spec["field"]

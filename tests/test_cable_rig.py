@@ -16,6 +16,7 @@ PLUGIN = os.path.join(HERE, "..", "CableTool", "plug-ins", "cableTool.py")
 import maya.standalone  # noqa: E402
 maya.standalone.initialize(name="python")
 import maya.cmds as cmds  # noqa: E402
+import numpy as np  # noqa: E402
 
 TESTS = []
 
@@ -650,16 +651,20 @@ def modes_share_one_interface():
     from cable_tool.route import Route
     modes = [g.mode for g in generators.GENERATORS]
     assert modes == ["cable", "fence", "road"], modes
-    assert [g.available for g in generators.GENERATORS] == [True, True,
-                                                             False]
+    assert all(g.available for g in generators.GENERATORS)
     a = locator("A", (0, 0, 0))
     b = locator("B", (10, 0, 0))
-    for mode in ("road",):
-        try:
-            generators.get(mode)().build(Route(a, b), {})
-        except CableToolError:
-            continue
-        raise AssertionError(mode + " mode built something")
+    # A mode listed before it's built refuses politely.
+    from cable_tool.generators.base import PlannedGenerator
+
+    class Planned(PlannedGenerator):
+        mode, label, noun = "planned", "Planned", "planned"
+    try:
+        Planned().build(Route(a, b), {})
+    except CableToolError:
+        pass
+    else:
+        raise AssertionError("a planned mode built something")
     assert not cmds.ls("*_GRP", type="transform") or \
         cmds.ls("*_GRP", type="transform") == ["CableTool_GRP"]
 
@@ -985,6 +990,306 @@ def fence_from_an_older_version_gains_gate_settings():
     assert old.update({"gateAnchor": 2}) == ["gateAnchor"]  # rebuilt
     assert cmds.getAttr(old.group + ".gateAnchor") == 2
     assert cmds.polyEvaluate(fence_part(old, "gate"), face=True) > 0
+
+
+# -- Road mode --------------------------------------------------------------
+def road(anchors, extras=None, **settings):
+    from cable_tool.route import Route
+    from cable_tool.generators import RoadGenerator
+    built = RoadGenerator()
+    built.build(Route(anchors[0], anchors[-1], anchors[1:-1]), settings,
+                extras=extras)
+    return built
+
+
+def road_part(built, part):
+    return fence_part(built, part)
+
+
+def mesh_points(shape):
+    import numpy as np
+    return np.array(cmds.xform(shape + ".vtx[*]", query=True,
+                               worldSpace=True, translation=True)).reshape(
+                                   -1, 3)
+
+
+def surface_rows(built):
+    """The surface's vertices as (stations, columns, xyz)."""
+    from cable_tool import road as road_mod
+    columns = len(road_mod.road_columns(
+        built.read_settings())[0])
+    return mesh_points(road_part(built, "surface")).reshape(-1, columns, 3)
+
+
+def shells(shape):
+    return cmds.polyEvaluate(shape, shell=True) if cmds.polyEvaluate(
+        shape, face=True) else 0
+
+
+@test
+def road_is_as_wide_as_its_lanes_and_live():
+    a, b = locator("A", (0, 0, 0)), locator("B", (30, 0, 0))
+    built = road([a, b], laneCount=2, laneWidth=3.5, shoulderWidth=1.0)
+    box = bbox(road_part(built, "surface"))
+    assert abs((box[5] - box[2]) - (4 * 3.5 + 2 * 1.0)) < 1e-3, box
+    builder = built.builder()
+    assert abs(cmds.getAttr(builder + ".outLength") - 30.0) < 0.05
+    cmds.xform(b, worldSpace=True, translation=(40, 0, 0))
+    assert abs(cmds.getAttr(builder + ".outLength") - 40.0) < 0.05
+    cmds.setAttr(built.group + ".laneCount", 1)
+    box = bbox(road_part(built, "surface"))
+    assert abs((box[5] - box[2]) - (2 * 3.5 + 2 * 1.0)) < 1e-3, box
+
+
+@test
+def road_has_a_crown_and_a_one_way_road_slopes_to_one_side():
+    a, b = locator("A", (0, 0, 0)), locator("B", (30, 0, 0))
+    built = road([a, b], laneCount=1, laneWidth=3.5, shoulderWidth=0.5,
+                 roadCrown=2.0)
+    rows = surface_rows(built)
+    middle = rows[len(rows) // 2]
+    # The centre line peaks; each edge is 2% of 4 m lower.
+    assert abs(middle[:, 1].max() - 0.0) < 1e-6
+    assert abs(middle[0, 1] + 0.08) < 1e-4 and abs(middle[-1, 1] + 0.08) < \
+        1e-4, middle[:, 1]
+    cmds.setAttr(built.group + ".oneWay", 1)
+    rows = surface_rows(built)
+    middle = rows[len(rows) // 2]
+    # Heading +X, the right is +Z: a one-way road falls to the right.
+    low_z = middle[np.argmin(middle[:, 2])]
+    high_z = middle[np.argmax(middle[:, 2])]
+    assert low_z[1] > high_z[1], middle
+
+
+@test
+def curves_bank_toward_their_inside():
+    from cable_tool import road as road_mod
+    # A left-hand curve (seen from above, heading +X then turning to -Z).
+    corners = [locator("P%d" % i, p) for i, p in enumerate(
+        [(0, 0, 0), (60, 0, 0), (100, 0, -40), (100, 0, -100)])]
+    built = road(corners, roadBank=6.0, roadSpeed=80.0, roadCrown=2.0)
+    rows = surface_rows(built)
+    slopes = []
+    for row in rows:
+        left, right = row[0], row[-1]
+        slopes.append((right[1] - left[1]) / np.linalg.norm(
+            (right - left)[[0, 2]]))
+    # Somewhere in the curve the whole road banks down to the left
+    # (inside), at no more than Banking.
+    assert max(slopes) > 0.04, max(slopes)
+    assert max(abs(x) for x in slopes) <= 0.06 + 1e-6
+    cmds.setAttr(built.group + ".roadBank", 0.0)
+    flat = surface_rows(built)
+    assert all(abs(r[0, 1] - r[-1, 1]) < 1e-6 for r in flat)
+    # The cross-section math on its own: a right-hand bank on a two-way
+    # road keeps the inner half at its crown until the bank passes it.
+    heights = road_mod.section_heights([-1.0, 1.0], [-0.01], 0.02, False)
+    assert np.allclose(heights, [[0.0, -0.02]]), heights
+
+
+def bumpy_ground():
+    import math
+    ground = cmds.polyPlane(name="ground", width=200, height=60,
+                            subdivisionsX=100, subdivisionsY=30)[0]
+    points = cmds.xform(ground + ".vtx[*]", query=True, worldSpace=True,
+                        translation=True)
+    for i in range(len(points) // 3):
+        x, z = points[3 * i], points[3 * i + 2]
+        cmds.xform("{0}.vtx[{1}]".format(ground, i), worldSpace=True,
+                   translation=(x, 6.0 * math.sin(x * 0.06) + 0.4 *
+                                math.sin(x * 0.9) + 0.05 * z, z))
+    return ground
+
+
+@test
+def road_runs_over_the_ground_smoothly_and_never_under_it():
+    import maya.api.OpenMaya as om
+    from cable_tool.fence import Ground
+    ground = bumpy_ground()
+    a, b = locator("A", (-90, 0, 0)), locator("B", (90, 0, 0))
+    built = road([a, b], extras={"ground": ground}, roadGrade=8.0)
+    shape = cmds.listRelatives(ground, shapes=True)[0]
+    path = om.MSelectionList().add(shape).getDagPath(0)
+    probe = Ground(path.node(), path.inclusiveMatrix())
+    rows = surface_rows(built)
+    under = [p[1] - probe.height(p) for p in rows.reshape(-1, 3)
+             if probe.height(p) is not None]
+    assert min(under) > -1e-3, min(under)
+    centre = rows[:, rows.shape[1] // 2]
+    grade = np.diff(centre[:, 1]) / np.linalg.norm(
+        np.diff(centre[:, [0, 2]], axis=0), axis=1)
+    assert np.abs(grade).max() <= 0.08 + 1e-3, np.abs(grade).max()
+    # The small bumps (0.4 m every 7 m) are smoothed away, not copied,
+    # and crests are rounded: the grade never jumps from one metre to
+    # the next.
+    assert np.abs(np.diff(grade)).max() < 0.02, np.abs(np.diff(grade)).max()
+    # Side slopes reach down to the ground.
+    verge = mesh_points(road_part(built, "verge"))
+    assert verge[:, 1].min() < rows[:, :, 1].min() - 1.0
+    # Moving the ground carries the road.
+    before = bbox(road_part(built, "surface"))[4]
+    cmds.move(0, 3, 0, ground, relative=True)
+    assert abs(bbox(road_part(built, "surface"))[4] - before - 3.0) < 1e-2
+
+
+@test
+def markings_follow_the_dash_rhythm_and_centre_style():
+    a, b = locator("A", (0, 0, 0)), locator("B", (48, 0, 0))
+    built = road([a, b], laneCount=2, dashLength=3.0, dashGap=9.0,
+                 centreLine=1, edgeLines=1)
+    centre = road_part(built, "centreLine")
+    assert shells(centre) == 4  # dashes start at 0, 12, 24 and 36 m
+    box = bbox(centre)
+    assert abs(box[0] - 0.0) < 1e-3 and abs(box[3] - 39.0) < 1e-3, box
+    # Two lane lines of 4 dashes, two solid edge lines.
+    assert shells(road_part(built, "markings")) == 2 * 4 + 2
+    # Paint sits just above the surface (the centre line on the crown).
+    surface_top = bbox(road_part(built, "surface"))[4]
+    assert 0 < bbox(centre)[4] - surface_top < 0.01
+    cmds.setAttr(built.group + ".centreLine", 3)
+    assert shells(centre) == 2  # double solid
+    cmds.setAttr(built.group + ".centreLine", 0)
+    assert shells(centre) == 0
+    # Gravel and dirt get no paint.
+    cmds.setAttr(built.group + ".roadSurface", 3)
+    assert shells(road_part(built, "markings")) == 0
+
+
+@test
+def surface_uvs_lay_out_lanes_across_and_dash_cycles_along():
+    a, b = locator("A", (0, 0, 0)), locator("B", (36, 0, 0))
+    built = road([a, b], dashLength=3.0, dashGap=9.0)
+    shape = road_part(built, "surface")
+    uvs = cmds.polyEditUV(shape + ".map[*]", query=True)
+    us, vs = uvs[::2], uvs[1::2]
+    assert abs(min(us)) < 1e-6 and abs(max(us) - 1.0) < 1e-6
+    assert abs(min(vs)) < 1e-6 and abs(max(vs) - 3.0) < 1e-3, max(vs)
+    # The centre line (the crown) is at U = 0.5.
+    rows = surface_rows(built)
+    assert abs(rows[0, rows.shape[1] // 2, 2]) < 1e-6
+
+
+@test
+def road_surface_colours_its_material_live_and_own_material_is_used():
+    a, b = locator("A", (0, 0, 0)), locator("B", (20, 0, 0))
+    built = road([a, b])
+    shader = cmds.ls(built.name + "_surface_MTL")[0]
+    asphalt = cmds.getAttr(shader + ".baseColor")[0]
+    cmds.setAttr(built.group + ".roadSurface", 4)  # dirt
+    dirt = cmds.getAttr(shader + ".baseColor")[0]
+    assert dirt[0] > asphalt[0] and dirt[0] > dirt[2], (asphalt, dirt)
+    centre = cmds.ls(built.name + "_centreLine_MTL")[0]
+    cmds.setAttr(built.group + ".yellowCentre", 0)
+    white = cmds.getAttr(centre + ".baseColor")[0]
+    assert abs(white[0] - white[2]) < 0.05, white
+
+    # The artist's own material, picked as a material (no shading group
+    # yet) or as an object that uses one.
+    mine = cmds.shadingNode("lambert", asShader=True, name="myAsphalt")
+    built = road([locator("C", (0, 0, 30)), locator("D", (20, 0, 30))],
+                 extras={"roadMaterial": mine})
+    groups = cmds.listConnections(road_part(built, "surface"),
+                                  type="shadingEngine")
+    assert cmds.listConnections(groups[0] + ".surfaceShader") == [mine]
+    built.rebuild(built.read_route(), built.read_settings(),
+                  built.read_extras())
+    groups = cmds.listConnections(road_part(built, "surface"),
+                                  type="shadingEngine")
+    assert cmds.listConnections(groups[0] + ".surfaceShader") == [mine]
+    cube = cmds.polyCube(name="painted")[0]
+    cmds.sets(cube, edit=True, forceElement=groups[0])
+    other = road([locator("E", (0, 0, 60)), locator("F", (20, 0, 60))],
+                 extras={"roadMaterial": cube})
+    assert cmds.listConnections(road_part(other, "surface"),
+                                type="shadingEngine") == groups
+    # Deleting the road leaves the artist's material alone.
+    built.delete()
+    other.delete()
+    assert cmds.objExists(mine)
+
+
+@test
+def sidewalks_stand_a_curb_above_the_road():
+    a, b = locator("A", (0, 0, 0)), locator("B", (20, 0, 0))
+    built = road([a, b], laneCount=1, laneWidth=3.5, shoulderWidth=0.0,
+                 roadCrown=2.0, sidewalks=1, curbHeight=0.15,
+                 sidewalkWidth=2.0)
+    box = bbox(road_part(built, "sidewalks"))
+    edge = -0.02 * 3.5
+    assert abs(box[4] - (edge + 0.15 + 0.02 * 2.0)) < 1e-4, box
+    assert abs((box[5] - box[2]) - 2 * (3.5 + 2.0)) < 1e-3, box
+    cmds.setAttr(built.group + ".sidewalks", 0)
+    assert cmds.polyEvaluate(road_part(built, "sidewalks"), face=True) == 0
+
+
+@test
+def road_parts_face_up_and_out():
+    import maya.api.OpenMaya as om
+    a, b = locator("A", (0, 0, 0)), locator("B", (20, 0, 0))
+    built = road([a, b], sidewalks=1)
+    for part in ("surface", "markings", "centreLine", "sidewalks"):
+        path = om.MSelectionList().add(road_part(built, part)).getDagPath(0)
+        fn = om.MFnMesh(path)
+        normals = [fn.getPolygonNormal(i, om.MSpace.kWorld)
+                   for i in range(fn.numPolygons)]
+        if part == "sidewalks":  # curb faces face the road, tops face up
+            for i, n in enumerate(normals):
+                centre = om.MVector(0, 0, 0)
+                for v in fn.getPolygonVertices(i):
+                    centre += om.MVector(fn.getPoint(v, om.MSpace.kWorld))
+                centre /= len(fn.getPolygonVertices(i))
+                assert n.y > 0.9 or n.z * centre.z < 0, (n, centre)
+        else:
+            assert min(n.y for n in normals) > 0.9, part
+    # The cross-sections closing each end of the road face out of it.
+    path = om.MSelectionList().add(road_part(built, "verge")).getDagPath(0)
+    fn = om.MFnMesh(path)
+    ends = [fn.getPolygonNormal(i, om.MSpace.kWorld).x
+            for i in range(fn.numPolygons)
+            if len(fn.getPolygonVertices(i)) > 4]
+    assert len(ends) == 2 and min(ends) < -0.9 and max(ends) > 0.9, ends
+
+
+@test
+def closed_route_makes_a_loop_without_ends():
+    corners = [locator("C%d" % i, p) for i, p in enumerate(
+        [(0, 0, 0), (40, 0, 0), (40, 0, 30), (0, 0, 30)])]
+    built = road(corners + [corners[0]])
+    rows = surface_rows(built)
+    assert np.allclose(rows[0], rows[-1], atol=1e-4)
+    # No end caps: every verge face is a quad.
+    shape = road_part(built, "verge")
+    sizes = {len(cmds.polyInfo("{0}.f[{1}]".format(shape, i),
+                               faceToVertex=True)[0].split()) - 2
+             for i in range(cmds.polyEvaluate(shape, face=True))}
+    assert sizes == {4}, sizes
+
+
+@test
+def road_presets_build_load_and_bake_with_their_materials():
+    from cable_tool.generators import RoadGenerator, from_node
+    a, b = locator("A", (0, 0, 0)), locator("B", (30, 0, 10))
+    for name, _values in RoadGenerator.presets:
+        built = road([a, b], **RoadGenerator.preset(name))
+        found = from_node(road_part(built, "surface"))
+        assert type(found).__name__ == "RoadGenerator", name
+        settings = found.read_settings()
+        for key, value in dict(RoadGenerator.presets)[name].items():
+            assert abs(settings[key] - value) < 1e-6, (name, key)
+        found.delete()
+    built = road([a, b])
+    baked = built.bake()
+    meshes = cmds.listRelatives(baked, children=True)
+    assert meshes and not cmds.ls("*_builder")
+    for mesh in meshes:
+        shape = cmds.listRelatives(mesh, shapes=True, fullPath=True)[0]
+        group = cmds.listConnections(shape, type="shadingEngine")
+        assert group and group[0] != "initialShadingGroup", mesh
+    surface = [m for m in meshes if "surface" in m][0]
+    shader = cmds.listConnections(cmds.listConnections(
+        cmds.listRelatives(surface, shapes=True)[0],
+        type="shadingEngine")[0] + ".surfaceShader")[0]
+    assert cmds.getAttr(shader + ".baseColor")[0][0] > 0.01
 
 
 @test

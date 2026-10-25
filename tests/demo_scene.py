@@ -3,7 +3,8 @@
     exec(open("/path/to/tests/demo_scene.py").read())
 
 builds the showcase (utility poles and a cyberpunk alley). Then call
-demo("fence") for the fence showcase (a farm on rolling ground), or
+demo("fence") for the fence showcase (a farm on rolling ground),
+demo("road") for the road showcase (roads over hilly countryside), or
 demo("peer") for the peer run's scene (cone, cube, sphere and cylinder).
 """
 
@@ -226,6 +227,106 @@ def farm():
     return fences
 
 
+def _road(anchors, preset=None, ground=None, material=None, **settings):
+    from cable_tool.generators import RoadGenerator
+    from cable_tool.route import Route
+    values = RoadGenerator.preset(preset) if preset else {}
+    values.update(settings)
+    road = RoadGenerator()
+    road.build(Route(anchors[0], anchors[-1], anchors[1:-1]), values,
+               extras={"ground": ground, "roadMaterial": material})
+    return road
+
+
+def hills():
+    """A 320 x 240 stretch of countryside: hills up to about 6 m."""
+    import math
+    ground = cmds.polyPlane(name="hills", width=320, height=240,
+                            subdivisionsX=80, subdivisionsY=60)[0]
+    points = cmds.xform(ground + ".vtx[*]", query=True, worldSpace=True,
+                        translation=True)
+    for i in range(len(points) // 3):
+        x, z = points[3 * i], points[3 * i + 2]
+        y = (3.0 * math.sin(x * 0.03) + 2.5 * math.cos(z * 0.045 + 0.4)
+             + 0.6 * math.sin(x * 0.09 + z * 0.07))
+        cmds.xform("{0}.vtx[{1}]".format(ground, i), worldSpace=True,
+                   translation=(x, y, z))
+    _paint("meadowMtl", (0.30, 0.42, 0.18), [ground])
+    return ground
+
+
+def lane_texture(settings, path, size=(512, 1024)):
+    """Paint a road texture for the road's UV layout: U across the paved
+    width, V one dash cycle along. Shows that a painted texture lines up
+    with Road mode's lanes. Returns path."""
+    from PySide6 import QtGui
+    from cable_tool import road
+    _columns, half, bounds = road.road_columns(settings)
+    width, height = size
+    image = QtGui.QImage(width, height, QtGui.QImage.Format.Format_RGB32)
+    image.fill(QtGui.QColor(58, 58, 60))
+    painter = QtGui.QPainter(image)
+    cycle = settings["dashLength"] + settings["dashGap"]
+    for x, line, dashed, centre in road.marking_lines(settings, bounds):
+        colour = (QtGui.QColor(222, 160, 20) if centre
+                  and settings["yellowCentre"] else QtGui.QColor(235, 235,
+                                                                 230))
+        left = (x - line * 0.5 + half) / (2 * half) * width
+        span = max(line / (2 * half) * width, 2.0)
+        # V = 0 is the bottom of the image; a dash starts at V = 0.
+        top = height * (1.0 - settings["dashLength"] / cycle) if dashed \
+            else 0.0
+        painter.fillRect(int(round(left)), int(top), int(round(span)),
+                         int(height - top), colour)
+    painter.end()
+    image.save(path)
+    return path
+
+
+def _textured(name, image):
+    shader = cmds.shadingNode("standardSurface", asShader=True, name=name)
+    texture = cmds.shadingNode("file", asTexture=True, name=name + "File")
+    cmds.setAttr(texture + ".fileTextureName", image, type="string")
+    place = cmds.shadingNode("place2dTexture", asUtility=True)
+    cmds.connectAttr(place + ".outUV", texture + ".uvCoord")
+    cmds.connectAttr(place + ".outUvFilterSize", texture + ".uvFilterSize")
+    cmds.connectAttr(texture + ".outColor", shader + ".baseColor")
+    cmds.setAttr(shader + ".specularRoughness", 0.7)
+    return shader
+
+
+def countryside():
+    """Four roads over the hills: a country road, a highway painted by
+    its own texture (Road Material) instead of modelled markings, a city
+    street with sidewalks and a gravel track that closes into a loop."""
+    from cable_tool.generators import RoadGenerator
+    ground = hills()
+
+    def route(prefix, points):
+        return [_locator("{0}{1}".format(prefix, i), (x, 0.0, z))
+                for i, (x, z) in enumerate(points)]
+
+    country = _road(route("country", [(-150, -70), (-95, -35), (-55, -75),
+                                      (-5, -40), (55, -80), (150, -45)]),
+                    "Country Road", ground)
+
+    highway = RoadGenerator.preset("Highway")
+    highway["markings"] = 0
+    image = lane_texture(highway, os.path.join(
+        cmds.internalVar(userTmpDir=True), "highway_lanes.png"))
+    material = _textured("highwayLanesMtl", image)
+    roads = [country,
+             _road(route("highway", [(-155, 85), (-60, 100), (40, 70),
+                                     (155, 90)]),
+                   ground=ground, material=material, **highway)]
+    roads.append(_road(route("street", [(10, -10), (70, -2), (140, -14)]),
+                       "City Street", ground))
+    track = route("track", [(-105, 5), (-70, -8), (-35, 10), (-45, 40),
+                            (-90, 38)])
+    roads.append(_road(track + [track[0]], "Gravel Track", ground))
+    return roads
+
+
 def peer_run():
     """The peer run's scene: cone, cube, sphere, cylinder."""
     cone = cmds.polyCone(name="cone", radius=1, height=2)[0]
@@ -252,6 +353,8 @@ def demo(scene="showcase"):
         cables = peer_run()
     elif scene == "fence":
         cables = farm()
+    elif scene == "road":
+        cables = countryside()
     else:
         cables = utility_poles() + cyberpunk_alley()
 
