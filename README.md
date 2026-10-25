@@ -86,6 +86,7 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#course-record">Course record</a><ul>
 <li><a href="#pitch">Pitch</a></li>
 <li><a href="#plan">Plan and status</a></li>
+<li><a href="#log-cable">Progress log: Cable / Pipe</a></li>
 <li><a href="#log-fence">Progress log: Fence</a></li>
 <li><a href="#log-gates">Progress log: Gates</a></li>
 <li><a href="#lessons">Lessons from my previous tool</a></li>
@@ -526,7 +527,7 @@ Next: basic Road mode. For Fence, possible later steps: more than one gate per f
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
 ## Course record
-The midterm's pitch, plan, progress and peer feedback.
+The midterm's pitch, plan, progress logs with reflections, and peer feedback.
 
 <a id="pitch"></a>
 
@@ -569,6 +570,98 @@ The midterm's pitch, plan, progress and peer feedback.
 1. ✅ Multi-wire bundles and variation.
 2. ✅ Fence mode: posts, rails and pickets. It went past the "flat ground" goal: it stands on uneven ground, closes into rings and takes custom parts.
 3. Basic Road mode: flat swept ribbon with lane-marking UVs.
+</details>
+
+<a id="log-cable"></a>
+
+<details>
+<summary><b>Progress log: Cable / Pipe (0.1–0.6), with reflections</b></summary>
+
+How the cable went from a first Sweep Mesh rig to a physically hanging, multi-wire tool, in the order it happened. Each stage was tested in Maya and changed by what the viewport showed.
+
+**1. The plugin shell and a live rig (Oct 16, weeks 1–2)**
+- **Shell:** a Maya module with a Python API 2.0 plugin. It provides the `cableTool` command, a **Cable Tool** menu, a dependency on the *sweep* plugin, and a clean unload.
+- **The `cable_tool` package:** one `DEFAULTS` table for every setting, input sanitising, tag-based cleanup, undo chunks, a shared `Route`, and a generator interface.
+- **The first rig:** Sweep Mesh along a curve, with `decomposeMatrix` nodes carrying the anchors' positions. Catenary sag was scaled by span length and done entirely in Maya nodes, with no script running per frame.
+- **Window and tests:** a PySide6 window with a mode dropdown, route picking, live sliders (one undo step per drag), Load / Delete Selected and a status box. Headless `mayapy` tests covered the rig and the window.
+
+**2. Peer run and the mode architecture (Oct 18 → 0.3.0)**
+
+Tong Lin's peer run found four problems (details under [Peer run](#peer-run)):
+
+| Problem | Fix |
+|---|---|
+| Twist pinched the tube | Twist was passed in degrees to an attribute that counts whole turns. It is now converted. |
+| Cables met at the object's pivot, inside it | Ends sit on the surface facing the next anchor and leave along its normal. |
+| Smoothness wasn't live | It became live. |
+| Waypoints turned in sharp corners | They are now smoothed with a Catmull-Rom spline and sag that eases out level at each waypoint. |
+
+The same release added the **mode architecture**. `BaseGenerator` owns the group, settings, anchors and Load / Rebuild / Delete, and a registry builds the Mode dropdown. Fence and Road were listed as placeholders.
+
+**3. First live tests in Maya 2026 (Oct 24)**
+- **Ends didn't follow their objects.** `closestPointOnMesh` was fed `.worldMesh` and silently ignored the transform. Fed `.outMesh` plus the object's world matrix, the ends follow.
+- **The tube folded where it left a cone's side.** The spline cut straight from the lead-out point to the next anchor, bending tighter (0.13) than the tube's radius (0.3). A stand-in neighbour now keeps the spline heading along the surface normal, so the tightest bend became 0.44.
+
+**4. The physics solver (→ 0.4.0)**
+
+A full re-test still showed three problems:
+- **Faceted tubes:** Sweep Mesh had put rings only at a few points.
+- **Kinks** where cables left a surface.
+- **Cutting through:** cables routed over an object ran through it.
+
+Patching each case would have made the spline maths ever more special-cased, so the cable became a **custom solver node** (`cableToolSolver`). It works in two stages:
+1. **An analytic rest shape:** surface ends, draped waypoints and catenary sag.
+2. **Verlet rope physics:** fixed segment lengths, bending stiffness and collision with the anchor meshes.
+
+Tuning it in Maya found four more problems:
+
+| Found | Change |
+|---|---|
+| The rope stretched about 9% | Gravity, damping and the number of passes retuned. It now stays within ~1.5%. |
+| Cosine-spaced points made the chain buckle into waves | Evenly spaced points, about one per tube diameter |
+| Collision let the tube clip corners | Particles kept 1.2 radii off surfaces |
+| `MFnMesh.boundingBox` fails on mesh data | Bounds computed from the points |
+
+The tube was switched to Sweep Mesh's *Distance* interpolation, with a ring every tube diameter ÷ Length Detail, so it is smooth at any scale.
+
+**5. Real-world looks: utility poles and cyberpunk tangles (0.4.0)**
+
+The request was cables that look like power lines or a tangle of cyberpunk wiring, not one tube running between three objects. That led to **multi-wire runs**:
+- **One route, many wires:** Wire Count, Spread, and wires either in a row or in a random cluster.
+- **Variation:** each wire's slack and thickness vary, from its own random stream (Seed + wire index).
+- **Presets:** *Single Pipe*, *Utility Line* and *Cyberpunk Tangle*.
+- **A demo scene:** four utility poles and an alley.
+
+**6. Production features (0.5.0 → 0.6.0)**
+- **Ports:** a picked vertex or face is a socket. The cable leaves along its normal, and a bundle fans out over a wall.
+- **End caps and lengthwise UVs:** texture tiling follows the live arc length, through `curveInfo` and `polyMoveUV`.
+- **Bake** to plain meshes, plus a **drag-and-drop installer** and shelf icon.
+- **Clamps:** an instance of any mesh, oriented by a frame built from the curve's tangent.
+- **Five interface languages,** with every string, error message included, translated.
+
+**Measured at the end of this stage (peer-run scene and demo):**
+- **No collisions:** no cable passes through any object.
+- **Length:** stays within ~1.5%.
+- **Bends:** the tightest are 1.7–4.8 tube radii.
+- **Speed:** the 45-wire showcase builds in about 3 s, and a drag updates in about 0.16 s.
+- **Tests:** 40 rig tests pass.
+
+#### Reflections
+- **When a shape has to obey physics, simulate it.** The analytic spline-plus-sag approach got about 80% of the way, and every remaining problem (folds, kinks, cutting through) needed another special case. A small rope simulation, started from that analytic shape, solved all three at once and made new features (draping, ports, wire bundles) easier. The analytic stage still matters: it gives the simulation a good starting point, so it settles fast.
+- **Look at the viewport, not just the tests.** The first tests checked exact positions and passed while the tube was visibly faceted and folded. The useful tests turned out to be physical ones: Is the length kept? How tight is the tightest bend? Does any point sit inside an object? Viewport captures after every change caught what the numbers missed.
+- **Maya's API has quiet traps.** All four failed silently rather than raising an error:
+  - Twist counts **turns**, not degrees.
+  - `closestPointOnMesh` given `worldMesh` ignores the transform.
+  - Enum names come back **translated** in non-English Maya, so the code uses indices.
+  - `MFnMesh.boundingBox` doesn't work on mesh data.
+
+  For each, the lesson is to measure the result rather than trust the attribute name.
+- **Put the logic in a node and keep everything live.** Moving the cable's maths into one custom node replaced a growing web of utility nodes. It also kept the promise of the pitch: nothing runs per frame, nothing needs regenerating, and every setting is a Channel Box attribute.
+- **The architecture paid for itself.** Building the generator base and the mode registry before they were strictly needed meant Fence later only needed its own node, settings and generator. Load, Rebuild, Bake, undo, cleanup and languages came for free.
+- **What I would do differently:**
+  - Start with the solver node from the first week, instead of reaching it after the spline approach ran out.
+  - Plan for many wires from the start. A run of dozens of wires re-solves every wire on each drag (about 0.16 s), and solving wires together could share work.
+  - Keep the solver's Python separate from Maya earlier, so the physics could be tuned without launching Maya.
 </details>
 
 <a id="log-fence"></a>
