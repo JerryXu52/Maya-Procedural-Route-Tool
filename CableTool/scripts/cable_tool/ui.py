@@ -14,6 +14,9 @@ node network's structure (Wire Count) rebuild it automatically, once a
 slider drag is released.
 """
 
+import ctypes
+import ctypes.util
+import sys
 import traceback
 
 import maya.cmds as cmds
@@ -31,6 +34,7 @@ from cable_tool.config import DEFAULTS, TOOL_NAME, VERSION, CableToolError
 from cable_tool.i18n import N_, tr
 
 WINDOW_OBJECT = "CableToolWindow"
+CONTROL_NAME = "CableToolWorkspaceControl"
 LOG_PREFIX = "[CableTool] "
 
 STATUS_COLOURS = {"info": "#3a3a3a", "ok": "#2a4d31",
@@ -39,6 +43,11 @@ STATUS_TAGS = {"info": "[INFO]", "ok": "[OK]", "warning": "[WARNING]",
                "error": "[ERROR]"}  # through tr() when shown
 
 _window = None
+_watching_app = False  # _on_app_state connected
+
+# macOS window levels (NSWindowLevel)
+NORMAL_LEVEL = 0
+FLOATING_LEVEL = 3
 
 
 def maya_main_window():
@@ -48,33 +57,141 @@ def maya_main_window():
     return wrapInstance(int(pointer), QtWidgets.QWidget)
 
 
+def _has_host():
+    return (maya_main_window() is not None
+            and cmds.workspaceControl(CONTROL_NAME, exists=True))
+
+
+def _host():
+    """The workspace control holding the window: it floats above Maya, or
+    docks into Maya's layout when dragged there by its tab. None in batch,
+    where the window is a plain top-level widget."""
+    if maya_main_window() is None:
+        return None
+    title = "{0} {1}".format(tr(TOOL_NAME), VERSION)
+    if cmds.workspaceControl(CONTROL_NAME, exists=True):
+        # Kept through a language switch or Reload: keep it where it is
+        # docked, and point it at this module's close handler.
+        cmds.workspaceControl(CONTROL_NAME, edit=True, label=title,
+                              closeCommand=_on_host_closed)
+    else:
+        cmds.workspaceControl(CONTROL_NAME, label=title, floating=True,
+                              retain=False, initialWidth=460,
+                              initialHeight=640, minimumWidth=320,
+                              closeCommand=_on_host_closed)
+    pointer = omui.MQtUtil.findControl(CONTROL_NAME)
+    return wrapInstance(int(pointer), QtWidgets.QWidget)
+
+
+def _on_host_closed():
+    """The workspace control's close button: Maya deletes the control and
+    the window with it, without a closeEvent (see also _open_window)."""
+    global _window
+    window, _window = _window, None
+    if window is not None:
+        try:
+            window.on_drag_finished()  # never leave an undo chunk open
+        except RuntimeError:  # the C++ widget was already deleted
+            pass
+
+
+def _set_window_level(widget, level):
+    """Set the macOS window level of a top-level widget's NSWindow."""
+    objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+    objc.sel_registerName.restype = ctypes.c_void_p
+    objc.sel_registerName.argtypes = [ctypes.c_char_p]
+    send = ctypes.cast(objc.objc_msgSend, ctypes.c_void_p).value
+    get_window = ctypes.CFUNCTYPE(
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(send)
+    set_level = ctypes.CFUNCTYPE(
+        None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_long)(send)
+    ns_window = get_window(int(widget.winId()),
+                           objc.sel_registerName(b"window"))
+    if ns_window:
+        set_level(ns_window, objc.sel_registerName(b"setLevel:"), level)
+
+
+def _on_app_state(state):
+    """macOS: Maya lifts a floating panel to the floating window level,
+    which keeps it above every app, and leaves it there when Maya goes to
+    the background. Keep ours floating only while Maya is the active app,
+    so it stays on top of Maya alone."""
+    window = _open_window()
+    if window is None or not cmds.workspaceControl(
+            CONTROL_NAME, query=True, floating=True):
+        return  # docked panels are part of Maya's main window
+    active = state == QtCore.Qt.ApplicationState.ApplicationActive
+    try:
+        _set_window_level(window.window(),
+                          FLOATING_LEVEL if active else NORMAL_LEVEL)
+    except (OSError, AttributeError):  # no Objective-C runtime
+        pass
+
+
+def _watch_app(on):
+    """Connect _on_app_state to Maya going to and from the background."""
+    global _watching_app
+    if sys.platform != "darwin" or on == _watching_app:
+        return
+    app = QtWidgets.QApplication.instance()
+    if on:
+        app.applicationStateChanged.connect(_on_app_state)
+    else:
+        try:
+            app.applicationStateChanged.disconnect(_on_app_state)
+        except (RuntimeError, TypeError):
+            pass
+    _watching_app = on
+
+
+def _open_window():
+    """The open window, or None. Maya can delete the workspace control,
+    and the window with it, without running its closeCommand."""
+    global _window
+    if (_window is not None and maya_main_window() is not None
+            and not cmds.workspaceControl(CONTROL_NAME, exists=True)):
+        _window = None
+    return _window
+
+
 def show():
     """Open the window, or raise it if it is already open."""
     global _window
-    if _window is not None:
+    if _open_window() is not None:
         try:
+            if _has_host():
+                cmds.workspaceControl(CONTROL_NAME, edit=True, restore=True)
             _window.show()
             _window.raise_()
             _window.activateWindow()
             return _window
         except RuntimeError:  # the C++ widget was already deleted
             _window = None
-    _window = CableToolWindow(parent=maya_main_window())
+    host = _host()
+    _window = CableToolWindow(parent=host)
+    if host is not None:
+        host.layout().addWidget(_window)
+        _watch_app(True)
     _window.show()
     return _window
 
 
-def close():
+def close(keep_host=False):
+    """Close the window. keep_host leaves its workspace control (and where
+    it is docked) for the next show() to fill."""
     global _window
     # Take the reference first: closing runs closeEvent, which clears the
     # global itself.
     window, _window = _window, None
+    _watch_app(False)
     if window is not None:
         try:
             window.close()
             window.deleteLater()
         except RuntimeError:  # the C++ widget was already deleted
             pass
+    if not keep_host and _has_host():
+        cmds.deleteUI(CONTROL_NAME)
 
 
 def about():
@@ -88,14 +205,14 @@ def about():
 def switch_language(code):
     """Change the interface language and rebuild the window in it, keeping
     what's on screen: route, mode, settings and the build being edited."""
-    global _window
-    state = _window.save_state() if _window is not None else None
+    window = _open_window()
+    state = window.save_state() if window is not None else None
     i18n.set_language(code)
     from cable_tool import menu
     menu.build()  # the Cable Tool menu in Maya's menu bar
     if state is None:
         return None
-    close()
+    close(keep_host=True)
     window = show()
     window.restore_state(state)
     return window
@@ -349,7 +466,6 @@ class CableToolWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(CableToolWindow, self).__init__(parent)
         self.setObjectName(WINDOW_OBJECT)
-        self.setWindowFlags(QtCore.Qt.WindowType.Window)
         self.setWindowTitle("{0} {1}".format(tr(TOOL_NAME), VERSION))
         self.resize(460, 640)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
