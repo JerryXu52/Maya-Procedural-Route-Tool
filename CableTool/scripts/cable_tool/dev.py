@@ -8,7 +8,7 @@ def reload_tool():
     reads the files fresh, then reopen the window. Cables already in the
     scene keep working: they are plain Maya nodes."""
     from cable_tool import ui
-    ui.close()
+    ui.close(keep_host=True)  # stays docked where it was
     for name in [m for m in sys.modules
                  if m == "cable_tool" or m.startswith("cable_tool.")]:
         del sys.modules[name]

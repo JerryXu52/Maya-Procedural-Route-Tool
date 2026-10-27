@@ -197,6 +197,8 @@ Open it from **Cable Tool › Open Cable Tool** in Maya's menu bar, from the **C
 
 Every slider has a number field beside it. The slider covers the usual range; type into the field to go further, up to a safe limit.
 
+The window is a Maya panel. It opens floating, on top of Maya but not of other apps. Drag it by its tab into Maya's layout to dock it, for example beside the Attribute Editor; it reopens where you left it, and stays put when you switch language or reload.
+
 <br clear="right">
 
 ### 1. Pick a route
