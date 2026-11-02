@@ -1425,4 +1425,5 @@ def main():
 if __name__ == "__main__":
     code = main()
     maya.standalone.uninitialize()
+    sys.stdout.flush()  # os._exit skips the flush, losing output piped to a file
     os._exit(1 if code else 0)

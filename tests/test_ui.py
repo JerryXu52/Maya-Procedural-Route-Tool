@@ -244,4 +244,5 @@ if __name__ == "__main__":
         print("FAIL  window smoke test")
         traceback.print_exc()
     maya.standalone.uninitialize()
+    sys.stdout.flush()  # os._exit skips the flush, losing output piped to a file
     os._exit(failed)
