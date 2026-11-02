@@ -94,7 +94,9 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#shared-parts">Shared parts</a></li>
 </ul></li>
 <li><a href="#project-layout">Project layout</a></li>
-<li><a href="#testing">Testing</a></li>
+<li><a href="#testing">Testing</a><ul>
+<li><a href="#verification-record">Verification record</a></li>
+</ul></li>
 <li><a href="#known-limits">Known limits</a></li>
 <li><a href="#roadmap">Roadmap</a></li>
 <li><a href="#course-record">Course record</a><ul>
@@ -643,6 +645,8 @@ MAYAPY=/Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy
 $MAYAPY tests/test_cable_rig.py
 QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 ```
+On Windows, Maya's Python is `C:\Program Files\Autodesk\Maya2026\bin\mayapy.exe`. Each script prints `PASS` or `FAIL` per test and a total, and exits with 1 if anything failed.
+
 They cover:
 - **Cable physics:** length kept, sag scaling, vertical runs, the low point, draping without cutting through objects, bend limits.
 - **Anchors:** ports on vertices and faces, following moves and mesh edits.
@@ -665,6 +669,15 @@ They cover:
 - **Scene safety:** undo, cleanup and the installer.
 - **Languages:** every string translated in every language, with its placeholders.
 - **Window:** a full session in each of the five languages, including building, gating and loading a fence, and building a road, switching its surface from the dropdown, picking a material from the Hypershade and loading it back.
+
+### Verification record
+| Date | What was run | Result |
+|---|---|---|
+| 2026-11-02 | Fresh `git clone` of `main`, Maya 2026 on macOS: `test_cable_rig.py` | 68 passed, 0 failed |
+| 2026-11-02 | Same clone: `test_ui.py` (offscreen) | Window smoke test passed in all five languages |
+| 2026-11-02 | Same clone, empty Maya preferences: `install.py`, then every demo scene (showcase, fence, road, peer) | Installed; all four scenes built (headless, so without opening the window) |
+
+The tests check numbers; the viewport checks the look. Every mode was also run in Maya 2026 and looked at after each change: the screenshots in this README are those checks, and the progress logs under [Course record](#course-record) list what they caught (for example the black road end cap, which no test saw until one was added).
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 

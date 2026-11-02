@@ -98,7 +98,9 @@
 <li><a href="#shared-parts">共享部分</a></li>
 </ul></li>
 <li><a href="#project-layout">项目结构</a></li>
-<li><a href="#testing">测试</a></li>
+<li><a href="#testing">测试</a><ul>
+<li><a href="#verification-record">验证记录</a></li>
+</ul></li>
 <li><a href="#known-limits">已知限制</a></li>
 <li><a href="#roadmap">路线图</a></li>
 <li><a href="#course-record">课程记录</a><ul>
@@ -711,6 +713,8 @@ MAYAPY=/Applications/Autodesk/maya2026/Maya.app/Contents/bin/mayapy
 $MAYAPY tests/test_cable_rig.py
 QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 ```
+在 Windows 上，Maya 的 Python 是 `C:\Program Files\Autodesk\Maya2026\bin\mayapy.exe`。每个脚本逐项打印 `PASS` 或 `FAIL` 和总数，有失败时以 1 退出。
+
 测试覆盖：
 - **线缆物理：** 长度保持、下垂缩放、竖直段、最低点、搭在物体上而不穿过、弯曲限制。
 - **锚点：** 顶点和面上的接口，跟随移动和网格编辑。
@@ -733,6 +737,17 @@ QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 - **场景安全：** 撤销、清理和安装程序。
 - **语言：** 每种语言都翻译了每条字符串，占位符齐全。
 - **窗口：** 五种语言下各一次完整会话，包括生成、加门和载入围栏，以及生成道路、在下拉菜单中切换路面类型、从 Hypershade 拾取材质并重新载入。
+
+<a id="verification-record"></a>
+
+### 验证记录
+| 日期 | 运行了什么 | 结果 |
+|---|---|---|
+| 2026-11-02 | 全新 `git clone` 的 `main`，macOS 上的 Maya 2026：`test_cable_rig.py` | 68 项通过，0 项失败 |
+| 2026-11-02 | 同一副本：`test_ui.py`（无界面） | 窗口冒烟测试在五种语言下全部通过 |
+| 2026-11-02 | 同一副本，空的 Maya 首选项：`install.py`，然后运行每个演示场景（展示、围栏、道路、同学试用） | 安装成功；四个场景全部生成（无界面运行，因此没有打开窗口） |
+
+测试检查数字，视口检查外观。每个模式在每次修改后也都在 Maya 2026 中运行并查看过：本文中的截图就是这些检查，[课程记录](#course-record)中的开发日志列出了它们发现的问题（例如道路末端的黑色端盖，在加上专门的测试之前没有任何测试发现它）。
 
 <p align="right"><a href="#contents">↑ 返回目录</a></p>
 
