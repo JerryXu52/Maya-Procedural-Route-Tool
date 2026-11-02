@@ -4,6 +4,17 @@
 
 **Author:** Jianrui(Jerry) Xu
 
+| | |
+|---|---|
+| **App** | **Autodesk Maya**, as a Python/Qt plugin. Tested in Maya 2026 on macOS; needs Maya 2022 or later. |
+| **Demo video** | ▶ <!-- TODO: replace with the 1–3 minute screen recording link --> *Link coming soon* |
+| **Install and run** | [Install](#install), then [Quick start](#quick-start) |
+| **What it does** | [Features](#features) and the [User guide](#user-guide) |
+| **What doesn't work yet** | [What doesn't work yet](#known-limits) |
+| **What I'd build next** | [What I'd build next](#roadmap) |
+| **Peer run** | [Peer run, and what I fixed](#peer-run) |
+| **Repository** | https://github.com/JerryXu52/Maya-Procedural-Route-Tool |
+
 A Maya Python/Qt plugin that builds live geometry along a route of picked objects, locators, vertices or faces. Pick the route once, choose what to build, and move anything on the route afterwards: the build follows.
 
 | Mode | Status | What it builds |
@@ -26,16 +37,6 @@ Built for SVA *Programming for Animators* (midterm).
 | **City street with curbs and sidewalks** | **Road Surface: the built-in materials, and your own** |
 | ![A four-lane city street with a double yellow line, curbs and sidewalks, raised on an embankment over the hills](docs/images/road-street.png) | ![Six short roads side by side: asphalt, concrete and cobblestone with paint, gravel and dirt without, and one using an artist's checker material](docs/images/road-surfaces.png) |
 
-## For reviewers
-| Looking for | Where |
-|---|---|
-| Running it from a fresh clone | [Install](#install), then [Quick start](#quick-start) |
-| The chore it ends, and the artist's UI | [Pitch](#pitch) (the chore), [The window](#the-window) and the [User guide](#user-guide) |
-| How every part works | [How it works](#how-it-works) and [Project layout](#project-layout) |
-| How it was verified | [Verification record](#verification-record), the screenshots, and the [progress logs](#log-cable) |
-| The history | [Commits on `main`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commits/main), Oct 11 → Nov 2, and the [plan and status](#plan) |
-| The peer run and the fix | [Peer run and the fix](#peer-run) |
-
 ## Contents
 
 <table>
@@ -44,7 +45,6 @@ Built for SVA *Programming for Animators* (midterm).
 
 <b>🚀 Start here</b>
 <ul>
-<li><a href="#for-reviewers">For reviewers</a></li>
 <li><a href="#features">Features</a><ul>
 <li><a href="#cable--pipe">Cable / Pipe</a></li>
 <li><a href="#fence">Fence</a></li>
@@ -53,7 +53,7 @@ Built for SVA *Programming for Animators* (midterm).
 </ul></li>
 <li><a href="#install">Install</a></li>
 <li><a href="#quick-start">Quick start and demo scenes</a></li>
-<li><a href="#peer-run">Peer run and the fix</a></li>
+<li><a href="#peer-run">Peer run, and what I fixed</a></li>
 </ul>
 
 </td>
@@ -108,8 +108,8 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#testing">Testing</a><ul>
 <li><a href="#verification-record">Verification record</a></li>
 </ul></li>
-<li><a href="#known-limits">Known limits</a></li>
-<li><a href="#roadmap">Roadmap</a></li>
+<li><a href="#known-limits">What doesn't work yet</a></li>
+<li><a href="#roadmap">What I'd build next</a></li>
 <li><a href="#course-record">Course record</a><ul>
 <li><a href="#pitch">Pitch</a></li>
 <li><a href="#plan">Plan and status</a></li>
@@ -198,12 +198,16 @@ The [User guide](#user-guide) below explains each step in detail.
 
 <a id="peer-run"></a>
 
-## Peer run: Tong Lin, and the fix
-Tong Lin ran the tool on Oct 18 and wrote down what happened. Their three answers are quoted below; the table after them is what I changed. The fixes are in commit [`9496457`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/9496457) (0.3.0), followed by [`cdc7012`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/cdc7012) and [`b876f95`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/b876f95) after a live re-test, and the physics solver in [`715d4db`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/715d4db) (0.4.0). To see the scene yourself, run `demo("peer")` (see [Quick start](#quick-start)).
+## Peer run (A6)
+Tong Lin ran the tool on Oct 18. Their three answers, as they wrote them:
 
 1. **What I did:** I loaded the plug-in in Maya 2026, picked a cone, a cube, a sphere and a cylinder in order as start, waypoints and end, generated a few cables, and then changed the Twist and Smoothness settings and added more waypoints.
 2. **What happened:** The cables were generated and followed the objects, but after changing Twist the tube became kinked and twisted into separate segments instead of a smooth cable, and where the cable meets the start and end objects the tube narrows to a sharp point and the cables cross each other.
 3. **What confused me or broke:** Smoothness didn't update live like the other settings (I had to press Rebuild to see it), and when I added several waypoints the cable bent into sharp, tight corners around them instead of a smooth turn.
+
+**What I fixed:** Twist is converted from degrees to the turns Sweep Mesh expects, cables end on the object's surface and leave along its normal instead of meeting at its pivot, Smoothness updates live, and waypoints get a smooth curve instead of sharp corners ([`9496457`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/9496457), with [`cdc7012`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/cdc7012) and [`b876f95`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/b876f95) after a live re-test). A later re-test led to the rope-physics solver ([`715d4db`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/715d4db)). To see the scene yourself, run `demo("peer")`.
+
+The details:
 
 | Problem | Cause | Fix |
 |---|---|---|
@@ -692,7 +696,9 @@ The tests check numbers; the viewport checks the look. Every mode was also run i
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
-## Known limits
+<a id="known-limits"></a>
+
+## What doesn't work yet
 - **Speed with many wires:** dragging a crossarm that carries dozens of wires re-solves all of them, at about 0.16 s per update in the demo. A picket fence with about 1,300 parts updates in about 0.05 s.
 - **Sharp edges:** where a cable bends over a sharp edge, the tube can graze it by up to about a fifth of its radius. It never cuts through.
 - **Fence corners:** pickets stop at each corner post, so a very tight corner shows a small gap between the two runs' pickets, as on a real fence. Square posts turn to face the bisector of a corner.
@@ -711,8 +717,18 @@ The tests check numbers; the viewport checks the look. Every mode was also run i
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
-## Roadmap
-Cables, fences and roads are all built along a route, so the mode architecture lets one tool build all three:
+<a id="roadmap"></a>
+
+## What I'd build next
+All three modes are built. In the order I'd build them:
+1. **Road junctions:** join crossing roads and T-junctions, which today are separate routes that overlap.
+2. **Cutting into terrain:** let a road cut through a hill instead of only riding on an embankment over it.
+3. **Faster wire bundles:** solve all the wires of a run together, so dragging a crossarm with dozens of wires stays interactive.
+4. **More gates:** more than one gate per fence, and a swinging gate that stops at the ground.
+5. **Along the road:** bridges, lamp posts and barriers.
+6. **Windows and older Maya:** test on Windows and on Maya 2022–2025.
+
+Where each mode stands today:
 
 | Building block | Cable / Pipe | Fence | Road |
 |---|---|---|---|
@@ -720,11 +736,7 @@ Cables, fences and roads are all built along a route, so the mode architecture l
 | Main geometry | ✅ round tube (Sweep Mesh) | ✅ board or round rails | ✅ lanes, shoulders, curbs, sidewalks |
 | Parts along the length | ✅ clamps | ✅ posts and pickets | ✅ painted markings |
 | Length-wise UVs | ✅ ribbed / striped | ✅ wood grain | ✅ **lane markings** |
-| Hard part | ✅ contact and attachment | ✅ uneven ground, corners, animated gates | ✅ terrain following, banking · intersections still to come |
-
-All three modes are built. Possible later steps:
-- **Road:** junctions, carving the terrain so roads can cut through hills, bridges, and lamp posts or barriers along the road.
-- **Fence:** more than one gate per fence, and stopping a swinging gate at the ground.
+| Hard part | ✅ contact and attachment | ✅ uneven ground, corners, animated gates | ✅ terrain following, banking · junctions still to come |
 
 ---
 
@@ -959,7 +971,7 @@ To support them:
 | Fresh-asphalt colour read as black in the viewport | Weathered asphalt (0.09 instead of 0.045) |
 | The outer edge of a hairpin was faceted: cross-sections were spaced along the centre line only | Cross-sections spaced by how far the outer edge travels, so bends get more |
 | The end of an open road was drawn black | The end cap faced inward; it is oriented by its Newell normal and tested |
-| A city street on a hillside sat on a tall embankment | A real limit of not cutting into the ground: documented under Known limits, and the demo's street moved to flatter ground |
+| A city street on a hillside sat on a tall embankment | A real limit of not cutting into the ground: documented under What doesn't work yet, and the demo's street moved to flatter ground |
 | The Road Surface dropdown failed to connect in PySide6 | Connected through a lambda |
 
 **Measured:** a 360 m country road over the hills updates in about 40 ms while an anchor is dragged; the four-road demo builds in about 0.4 s.

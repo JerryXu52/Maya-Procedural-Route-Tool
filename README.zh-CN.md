@@ -4,6 +4,17 @@
 
 **作者：** 徐健睿（Jianrui (Jerry) Xu）
 
+| | |
+|---|---|
+| **软件** | **Autodesk Maya**，以 Python/Qt 插件的形式。在 macOS 上的 Maya 2026 中测试；需要 Maya 2022 或更高版本。 |
+| **演示视频** | ▶ <!-- TODO: 换成 1–3 分钟录屏的链接 --> *链接即将补上* |
+| **安装与运行** | [安装](#install)，然后[快速上手](#quick-start) |
+| **功能** | [功能](#features)和[使用指南](#user-guide) |
+| **尚未解决的问题** | [尚未解决的问题](#known-limits) |
+| **下一步要做的** | [下一步要做的](#roadmap) |
+| **同学试用** | [同学试用，以及我修复了什么](#peer-run) |
+| **仓库** | https://github.com/JerryXu52/Maya-Procedural-Route-Tool |
+
 一个 Maya Python/Qt 插件：沿着由所拾取的物体、定位器、顶点或面组成的路径，生成实时更新的几何体。只需拾取一次路径，选择要生成的内容，之后移动路径上的任何东西，生成结果都会跟着变化。
 
 > 工具界面本身支持中文：在窗口的 **Language（语言）** 菜单中选择 *简体中文*。下文中的按钮和设置名称都使用工具中文界面里的名称，并在括号中注明英文名称，方便使用英文界面时对照。
@@ -28,18 +39,6 @@
 | **带路缘石和人行道的城市街道** | **路面类型：内置材质，以及你自己的材质** |
 | ![一条四车道城市街道，有双黄线、路缘石和人行道，架在山丘上的路堤上](docs/images/road-street.png) | ![六段并排的短路：沥青、混凝土和鹅卵石有标线，砂石和土路没有，最后一段使用美术自己的棋盘格材质](docs/images/road-surfaces.png) |
 
-<a id="for-reviewers"></a>
-
-## 评阅指引
-| 想看 | 位置 |
-|---|---|
-| 从全新克隆运行 | [安装](#install)，然后[快速上手](#quick-start) |
-| 它解决的繁琐工作，以及给美术用的界面 | [项目提案](#pitch)（繁琐工作）、[窗口](#the-window)和[使用指南](#user-guide) |
-| 每个部分如何工作 | [工作原理](#how-it-works)和[项目结构](#project-layout) |
-| 如何验证 | [验证记录](#verification-record)、截图和[开发日志](#log-cable) |
-| 提交历史 | [`main` 上的提交](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commits/main)，10 月 11 日 → 11 月 2 日，以及[计划与进度](#plan) |
-| 同学试用与修复 | [同学试用与修复](#peer-run) |
-
 <a id="contents"></a>
 
 ## 目录
@@ -50,7 +49,6 @@
 
 <b>🚀 从这里开始</b>
 <ul>
-<li><a href="#for-reviewers">评阅指引</a></li>
 <li><a href="#features">功能</a><ul>
 <li><a href="#cable--pipe">线缆 / 管道</a></li>
 <li><a href="#fence">围栏</a></li>
@@ -59,7 +57,7 @@
 </ul></li>
 <li><a href="#install">安装</a></li>
 <li><a href="#quick-start">快速上手与演示场景</a></li>
-<li><a href="#peer-run">同学试用与修复</a></li>
+<li><a href="#peer-run">同学试用，以及我修复了什么</a></li>
 </ul>
 
 </td>
@@ -114,8 +112,8 @@
 <li><a href="#testing">测试</a><ul>
 <li><a href="#verification-record">验证记录</a></li>
 </ul></li>
-<li><a href="#known-limits">已知限制</a></li>
-<li><a href="#roadmap">路线图</a></li>
+<li><a href="#known-limits">尚未解决的问题</a></li>
+<li><a href="#roadmap">下一步要做的</a></li>
 <li><a href="#course-record">课程记录</a><ul>
 <li><a href="#pitch">项目提案</a></li>
 <li><a href="#plan">计划与进度</a></li>
@@ -218,14 +216,18 @@
 
 <a id="peer-run"></a>
 
-## 同学试用：Tong Lin，以及修复
-Tong Lin 在 10 月 18 日试用了这个工具，并记录了过程。下面是三段反馈的译文；之后的表格是我做出的修改。修复在提交 [`9496457`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/9496457)（0.3.0）中，实时重新测试后又有 [`cdc7012`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/cdc7012) 和 [`b876f95`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/b876f95)，物理解算器在 [`715d4db`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/715d4db)（0.4.0）中。想亲自查看这个场景，运行 `demo("peer")`（见[快速上手](#quick-start)）。
+## 同学试用（A6）
+Tong Lin 在 10 月 18 日试用了这个工具。下面是三段反馈的译文：
 
 > 以下三段是 Tong Lin 的反馈译文，英文原文见 [English README](README.md#peer-run)。
 
 1. **我做了什么：** 我在 Maya 2026 中加载了插件，依次拾取一个圆锥、一个立方体、一个球体和一个圆柱作为起点、途经点和终点，生成了几根线缆，然后修改了扭转和平滑度设置，又加了更多途经点。
 2. **发生了什么：** 线缆生成了并且跟随物体，但修改扭转后，管道打结并拧成了一节一节，而不是一根平滑的线缆；在线缆与起点和终点物体相接的地方，管道收窄成一个尖点，线缆之间相互交叉。
 3. **让我困惑或出错的地方：** 平滑度不像其他设置那样实时更新（我必须点击重建才能看到），而且加了几个途经点之后，线缆在它们周围弯成了尖锐的急弯，而不是平滑地转弯。
+
+**我修复了什么：** 扭转从度数换算成 Sweep Mesh 需要的圈数；线缆结束在物体表面并沿法线引出，而不是交汇在枢轴点；平滑度实时更新；途经点处是平滑的曲线而不是急弯（[`9496457`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/9496457)，实时重新测试后又有 [`cdc7012`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/cdc7012) 和 [`b876f95`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/b876f95)）。之后的重新测试促成了绳子物理解算器（[`715d4db`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/715d4db)）。想亲自查看这个场景，运行 `demo("peer")`。
+
+详细说明：
 
 | 问题 | 原因 | 修复 |
 |---|---|---|
@@ -766,7 +768,7 @@ QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 
 <a id="known-limits"></a>
 
-## 已知限制
+## 尚未解决的问题
 - **多线时的速度：** 拖动一根承载几十根线的横担时会重新解算所有线，在演示中每次更新约 0.16 秒。约 1,300 个部件的尖桩围栏每次更新约 0.05 秒。
 - **锐利的边：** 线缆在锐利的边上弯过时，管道可能会擦进去最多约五分之一个半径，但永远不会穿过去。
 - **围栏转角：** 尖桩在每根转角立柱处停止，所以非常急的转角处两段的尖桩之间会有一点缝隙，和真实围栏一样。方形立柱会转向转角的角平分线方向。
@@ -787,8 +789,16 @@ QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 
 <a id="roadmap"></a>
 
-## 路线图
-线缆、围栏和道路都是沿路径生成的，所以模式架构让一个工具可以生成这三种东西：
+## 下一步要做的
+三种模式都已完成。按我会做的顺序：
+1. **道路路口：** 把交叉的道路和丁字路口连接起来，现在它们是相互重叠的独立路径。
+2. **挖开地形：** 让道路可以穿过山丘，而不只是架在路堤上。
+3. **更快的线束：** 把一组线一起解算，让拖动挂着几十根线的横担时依然流畅。
+4. **更多的门：** 一道围栏多扇门，以及让开合的门停在地面上。
+5. **沿路设施：** 桥梁、路灯和护栏。
+6. **Windows 和旧版 Maya：** 在 Windows 和 Maya 2022–2025 上测试。
+
+各模式目前的状态：
 
 | 组成部分 | 线缆 / 管道 | 围栏 | 道路 |
 |---|---|---|---|
@@ -797,10 +807,6 @@ QT_QPA_PLATFORM=offscreen $MAYAPY tests/test_ui.py
 | 沿长度分布的部件 | ✅ 卡箍 | ✅ 立柱和尖桩 | ✅ 画出的标线 |
 | 沿长度方向的 UV | ✅ 螺纹 / 条纹 | ✅ 木纹 | ✅ **车道线** |
 | 难点 | ✅ 接触和连接 | ✅ 不平地面、转角、可动画的门 | ✅ 贴合地形、弯道超高 · 路口尚待实现 |
-
-三种模式都已完成。以后可能做的：
-- **道路：** 路口、挖开地形让道路穿过山丘、桥梁，以及沿路的路灯或护栏。
-- **围栏：** 一道围栏多扇门，以及让开合的门停在地面上。
 
 ---
 
@@ -1037,7 +1043,7 @@ Tong Lin 的试用发现了四个问题（详见[同学试用](#peer-run)）：
 | 新铺沥青的颜色在视口里看起来是黑的 | 改为风化沥青（0.09 而不是 0.045） |
 | 发夹弯的外侧边缘有棱角：横断面只按中心线间隔 | 按外侧边缘走过的距离布置横断面，弯道会有更多 |
 | 开放道路的端头显示为黑色 | 端面朝内；现在按 Newell 法线定向，并有测试 |
-| 山坡上的城市街道架在很高的路堤上 | 这是不挖地形的真实限制：写进已知限制，并把演示中的街道移到较平坦的地方 |
+| 山坡上的城市街道架在很高的路堤上 | 这是不挖地形的真实限制：写进尚未解决的问题，并把演示中的街道移到较平坦的地方 |
 | 路面类型下拉菜单在 PySide6 中连接失败 | 改为通过 lambda 连接 |
 
 **实测：** 拖动锚点时，一条翻过山丘的 360 米乡村道路每次更新约 40 毫秒；四条道路的演示约 0.4 秒生成。
