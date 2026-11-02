@@ -14,11 +14,10 @@ import maya.cmds as cmds
 
 try:
     HERE = os.path.dirname(os.path.abspath(__file__))
-except NameError:  # exec'd from the Script Editor
-    HERE = os.path.join(os.path.expanduser("~"), "Claude",
-                        "Maya-Procedural-Route-Tool", "tests")
-PLUGIN = os.path.normpath(os.path.join(HERE, "..", "CableTool", "plug-ins",
-                                       "cableTool.py"))
+    PLUGIN = os.path.normpath(os.path.join(HERE, "..", "CableTool",
+                                           "plug-ins", "cableTool.py"))
+except NameError:  # exec'd from the Script Editor: use the installed module
+    PLUGIN = "cableTool"
 
 
 def _start():
