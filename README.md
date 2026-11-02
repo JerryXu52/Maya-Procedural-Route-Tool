@@ -26,6 +26,16 @@ Built for SVA *Programming for Animators* (midterm).
 | **City street with curbs and sidewalks** | **Road Surface: the built-in materials, and your own** |
 | ![A four-lane city street with a double yellow line, curbs and sidewalks, raised on an embankment over the hills](docs/images/road-street.png) | ![Six short roads side by side: asphalt, concrete and cobblestone with paint, gravel and dirt without, and one using an artist's checker material](docs/images/road-surfaces.png) |
 
+## For reviewers
+| Looking for | Where |
+|---|---|
+| Running it from a fresh clone | [Install](#install), then [Quick start](#quick-start) |
+| The chore it ends, and the artist's UI | [Pitch](#pitch) (the chore), [The window](#the-window) and the [User guide](#user-guide) |
+| How every part works | [How it works](#how-it-works) and [Project layout](#project-layout) |
+| How it was verified | [Verification record](#verification-record), the screenshots, and the [progress logs](#log-cable) |
+| The history | [Commits on `main`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commits/main), Oct 11 → Nov 2, and the [plan and status](#plan) |
+| The peer run and the fix | [Peer run and the fix](#peer-run) |
+
 ## Contents
 
 <table>
@@ -34,6 +44,7 @@ Built for SVA *Programming for Animators* (midterm).
 
 <b>🚀 Start here</b>
 <ul>
+<li><a href="#for-reviewers">For reviewers</a></li>
 <li><a href="#features">Features</a><ul>
 <li><a href="#cable--pipe">Cable / Pipe</a></li>
 <li><a href="#fence">Fence</a></li>

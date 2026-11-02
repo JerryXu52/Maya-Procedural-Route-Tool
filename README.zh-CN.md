@@ -28,6 +28,18 @@
 | **带路缘石和人行道的城市街道** | **路面类型：内置材质，以及你自己的材质** |
 | ![一条四车道城市街道，有双黄线、路缘石和人行道，架在山丘上的路堤上](docs/images/road-street.png) | ![六段并排的短路：沥青、混凝土和鹅卵石有标线，砂石和土路没有，最后一段使用美术自己的棋盘格材质](docs/images/road-surfaces.png) |
 
+<a id="for-reviewers"></a>
+
+## 评阅指引
+| 想看 | 位置 |
+|---|---|
+| 从全新克隆运行 | [安装](#install)，然后[快速上手](#quick-start) |
+| 它解决的繁琐工作，以及给美术用的界面 | [项目提案](#pitch)（繁琐工作）、[窗口](#the-window)和[使用指南](#user-guide) |
+| 每个部分如何工作 | [工作原理](#how-it-works)和[项目结构](#project-layout) |
+| 如何验证 | [验证记录](#verification-record)、截图和[开发日志](#log-cable) |
+| 提交历史 | [`main` 上的提交](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commits/main)，10 月 11 日 → 11 月 2 日，以及[计划与进度](#plan) |
+| 同学试用与修复 | [同学试用与修复](#peer-run) |
+
 <a id="contents"></a>
 
 ## 目录
@@ -38,6 +50,7 @@
 
 <b>🚀 从这里开始</b>
 <ul>
+<li><a href="#for-reviewers">评阅指引</a></li>
 <li><a href="#features">功能</a><ul>
 <li><a href="#cable--pipe">线缆 / 管道</a></li>
 <li><a href="#fence">围栏</a></li>
