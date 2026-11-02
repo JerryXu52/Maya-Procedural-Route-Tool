@@ -156,10 +156,15 @@ Built for SVA *Programming for Animators* (midterm).
 ## Install
 Developed and tested in **Maya 2026** on macOS. Earlier versions are untested: Sweep Mesh needs Maya 2022 or later, and the tool also uses newer math nodes such as `multDL`.
 
-1. Download or clone this repository and keep the `CableTool` folder somewhere permanent.
-2. Drag `CableTool/install.py` into Maya's viewport. It registers the module, loads the plugin, sets it to auto-load and adds a **Cable Tool** shelf button.
+1. **Get the code.** Clone the repository:
+   ```
+   git clone https://github.com/JerryXu52/Maya-Procedural-Route-Tool.git
+   ```
+   or on GitHub press **Code › Download ZIP** and unzip it (the folder is then called `Maya-Procedural-Route-Tool-main`). Put the folder somewhere permanent: Maya loads the tool from it, nothing is copied.
+2. **Install.** Start Maya, then drag `CableTool/install.py` from Finder or Explorer into Maya's viewport. It registers the module, loads the plugin, sets it to auto-load and adds a **Cable Tool** shelf button.
+3. **Check.** A **Cable Tool** menu appears in Maya's menu bar, and a shelf button on the current shelf. Both are back after restarting Maya.
 
-Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **Windows › Settings/Preferences › Plug-in Manager › Browse**.
+Moved the folder? Drag `install.py` in again. Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **Windows › Settings/Preferences › Plug-in Manager › Browse**.
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
@@ -171,7 +176,7 @@ Without installing, you can also load `CableTool/plug-ins/cableTool.py` from **W
 
 The [User guide](#user-guide) below explains each step in detail.
 
-**Demo scenes:** in the Script Editor, run `exec(open("/path/to/tests/demo_scene.py").read())`. It builds the utility poles and cyberpunk alley. Then call:
+**Demo scenes:** in the Script Editor, run `exec(open("/path/to/Maya-Procedural-Route-Tool/tests/demo_scene.py").read())`, with the path to your copy (install first). It builds the utility poles and cyberpunk alley. Then call:
 - `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence with a double farm gate, a privacy fence and a pipe railing on a wall.
 - `demo("road")` for the countryside: a country road over the hills, a highway painted by a lane texture (the demo paints the texture from the road's own layout), a city street with sidewalks and a gravel track loop.
 - `demo("peer")` for the peer-review scene (cone, cube, sphere, cylinder).

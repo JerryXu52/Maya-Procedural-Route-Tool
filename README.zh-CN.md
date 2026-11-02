@@ -172,10 +172,15 @@
 ## 安装
 在 macOS 上的 **Maya 2026** 中开发和测试。更早的版本未经测试：Sweep Mesh 需要 Maya 2022 或更高版本，工具还用到了 `multDL` 等较新的数学节点。
 
-1. 下载或克隆本仓库，把 `CableTool` 文件夹放在一个固定的位置。
-2. 把 `CableTool/install.py` 拖进 Maya 的视口。它会注册模块、加载插件、设为自动加载，并添加一个 **Cable Tool** 工具架按钮。
+1. **获取代码。** 克隆仓库：
+   ```
+   git clone https://github.com/JerryXu52/Maya-Procedural-Route-Tool.git
+   ```
+   或者在 GitHub 上点击 **Code › Download ZIP** 并解压（文件夹名为 `Maya-Procedural-Route-Tool-main`）。把文件夹放在一个固定的位置：Maya 从这里加载工具，不会复制任何文件。
+2. **安装。** 启动 Maya，然后从访达或资源管理器把 `CableTool/install.py` 拖进 Maya 的视口。它会注册模块、加载插件、设为自动加载，并添加一个 **Cable Tool** 工具架按钮。
+3. **检查。** Maya 菜单栏中出现 **线缆工具**（Cable Tool）菜单，当前工具架上出现一个按钮。重启 Maya 后它们依然在。
 
-不安装的话，也可以从 **窗口 › 设置/首选项 › 插件管理器 › 浏览**（Windows › Settings/Preferences › Plug-in Manager › Browse）加载 `CableTool/plug-ins/cableTool.py`。
+移动了文件夹？再把 `install.py` 拖进来一次。不安装的话，也可以从 **窗口 › 设置/首选项 › 插件管理器 › 浏览**（Windows › Settings/Preferences › Plug-in Manager › Browse）加载 `CableTool/plug-ins/cableTool.py`。
 
 <p align="right"><a href="#contents">↑ 返回目录</a></p>
 
@@ -189,7 +194,7 @@
 
 下方的[使用指南](#user-guide)会详细解释每一步。
 
-**演示场景：** 在脚本编辑器中运行 `exec(open("/path/to/tests/demo_scene.py").read())`。它会生成电线杆和赛博朋克小巷。然后可以调用：
+**演示场景：** 在脚本编辑器中运行 `exec(open("/path/to/Maya-Procedural-Route-Tool/tests/demo_scene.py").read())`，路径换成你的副本所在位置（需先安装）。它会生成电线杆和赛博朋克小巷。然后可以调用：
 - `demo("fence")` 生成农场：带门的尖桩围栏院子、翻过山坡的牧场栅栏、带双开农场门的铁丝围栏、一道隐私围栏，以及墙上的一段管式栏杆。
 - `demo("road")` 生成乡村：翻过山丘的乡村道路、由车道纹理画出标线的高速公路（演示会根据道路自身的布局绘制这张纹理）、带人行道的城市街道，以及一条砂石小道环线。
 - `demo("peer")` 生成同学试用场景（圆锥、立方体、球体、圆柱）。
