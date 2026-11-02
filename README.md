@@ -42,6 +42,7 @@ Built for SVA *Programming for Animators* (midterm).
 </ul></li>
 <li><a href="#install">Install</a></li>
 <li><a href="#quick-start">Quick start and demo scenes</a></li>
+<li><a href="#peer-run">Peer run and the fix</a></li>
 </ul>
 
 </td>
@@ -104,7 +105,6 @@ Built for SVA *Programming for Animators* (midterm).
 <li><a href="#log-gates">Progress log: Gates</a></li>
 <li><a href="#log-road">Progress log: Road</a></li>
 <li><a href="#lessons">Lessons from my previous tool</a></li>
-<li><a href="#peer-run">Peer run: Tong Lin</a></li>
 <li><a href="#window-chinese">The window in Chinese</a></li>
 </ul></li>
 </ul>
@@ -175,6 +175,35 @@ The [User guide](#user-guide) below explains each step in detail.
 - `demo("fence")` for the farm: a picket-fenced yard with a gate, a ranch fence over a hill, a wire fence with a double farm gate, a privacy fence and a pipe railing on a wall.
 - `demo("road")` for the countryside: a country road over the hills, a highway painted by a lane texture (the demo paints the texture from the road's own layout), a city street with sidewalks and a gravel track loop.
 - `demo("peer")` for the peer-review scene (cone, cube, sphere, cylinder).
+
+<p align="right"><a href="#contents">↑ Back to contents</a></p>
+
+<a id="peer-run"></a>
+
+## Peer run: Tong Lin, and the fix
+Tong Lin ran the tool on Oct 18 and wrote down what happened. Their three answers are quoted below; the table after them is what I changed. The fixes are in commit [`9496457`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/9496457) (0.3.0), followed by [`cdc7012`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/cdc7012) and [`b876f95`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/b876f95) after a live re-test, and the physics solver in [`715d4db`](https://github.com/JerryXu52/Maya-Procedural-Route-Tool/commit/715d4db) (0.4.0). To see the scene yourself, run `demo("peer")` (see [Quick start](#quick-start)).
+
+1. **What I did:** I loaded the plug-in in Maya 2026, picked a cone, a cube, a sphere and a cylinder in order as start, waypoints and end, generated a few cables, and then changed the Twist and Smoothness settings and added more waypoints.
+2. **What happened:** The cables were generated and followed the objects, but after changing Twist the tube became kinked and twisted into separate segments instead of a smooth cable, and where the cable meets the start and end objects the tube narrows to a sharp point and the cables cross each other.
+3. **What confused me or broke:** Smoothness didn't update live like the other settings (I had to press Rebuild to see it), and when I added several waypoints the cable bent into sharp, tight corners around them instead of a smooth turn.
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Twist kinked the tube into segments | Sweep Mesh counts Twist in whole turns; the tool passed degrees, so 90 became 90 turns | Degrees are converted to turns |
+| The tube narrowed to a point at the end objects, and cables crossed | Every cable ended at the object's pivot, inside it | Ends sit on the surface facing the next anchor and leave outward |
+| Smoothness didn't update live | It changed the curve's point count, which needed a Rebuild | The solver re-samples live |
+| Sharp corners at waypoints | Straight lines between waypoints, and sag meeting in a V | A smooth spline through waypoints, then rope physics |
+
+A later live re-test in Maya found three more problems:
+- **Faceted tubes:** Sweep Mesh's default put cross-section rings only at a few points.
+- **Kinks at the surfaces:** cables kinked or folded where they left a surface.
+- **Cutting through objects:** cables routed through a mesh waypoint ran through its middle, then cut through its walls.
+
+Those led to the physics solver.
+
+| Before (peer-run scene) | After |
+|---|---|
+| ![Cables before: faceted tubes, kinks at the ends, cables through objects](docs/images/peer-run-before.png) | ![Cables after: smooth tubes draped over the cube and sphere, hanging naturally](docs/images/peer-run-after.png) |
 
 <p align="right"><a href="#contents">↑ Back to contents</a></p>
 
@@ -928,34 +957,6 @@ In September I built `CableHoseRigTool.py`, a one-shot generator: it computed ev
 | Undo chunks, two-level error handling, input sanitising | | Defaults written twice → one `DEFAULTS` table |
 | Sag scaled by span length; catenary shape | | Clear was all-or-nothing → per-cable Load / Delete |
 | Multi-pick spans → grown into waypoint routing | | |
-</details>
-
-<a id="peer-run"></a>
-
-<details>
-<summary><b>Peer run: Tong Lin, and what changed</b></summary>
-
-1. **What I did:** I loaded the plug-in in Maya 2026, picked a cone, a cube, a sphere and a cylinder in order as start, waypoints and end, generated a few cables, and then changed the Twist and Smoothness settings and added more waypoints.
-2. **What happened:** The cables were generated and followed the objects, but after changing Twist the tube became kinked and twisted into separate segments instead of a smooth cable, and where the cable meets the start and end objects the tube narrows to a sharp point and the cables cross each other.
-3. **What confused me or broke:** Smoothness didn't update live like the other settings (I had to press Rebuild to see it), and when I added several waypoints the cable bent into sharp, tight corners around them instead of a smooth turn.
-
-| Problem | Cause | Fix |
-|---|---|---|
-| Twist kinked the tube into segments | Sweep Mesh counts Twist in whole turns; the tool passed degrees, so 90 became 90 turns | Degrees are converted to turns |
-| The tube narrowed to a point at the end objects, and cables crossed | Every cable ended at the object's pivot, inside it | Ends sit on the surface facing the next anchor and leave outward |
-| Smoothness didn't update live | It changed the curve's point count, which needed a Rebuild | The solver re-samples live |
-| Sharp corners at waypoints | Straight lines between waypoints, and sag meeting in a V | A smooth spline through waypoints, then rope physics |
-
-A later live re-test in Maya found three more problems:
-- **Faceted tubes:** Sweep Mesh's default put cross-section rings only at a few points.
-- **Kinks at the surfaces:** cables kinked or folded where they left a surface.
-- **Cutting through objects:** cables routed through a mesh waypoint ran through its middle, then cut through its walls.
-
-Those led to the physics solver.
-
-| Before (peer-run scene) | After |
-|---|---|
-| ![Cables before: faceted tubes, kinks at the ends, cables through objects](docs/images/peer-run-before.png) | ![Cables after: smooth tubes draped over the cube and sphere, hanging naturally](docs/images/peer-run-after.png) |
 </details>
 
 <a id="window-chinese"></a>
