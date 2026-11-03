@@ -7,13 +7,15 @@
 | | |
 |---|---|
 | **软件** | **Autodesk Maya**，以 Python/Qt 插件的形式。在 macOS 上的 Maya 2026 中测试；需要 Maya 2022 或更高版本。 |
-| **演示视频** | ▶ <!-- TODO: 换成 1–3 分钟录屏的链接 --> *链接即将补上* |
+| **演示视频** | ▶ [在 YouTube 上观看演示](https://youtu.be/hMpk0dLglDQ) |
 | **安装与运行** | [安装](#install)，然后[快速上手](#quick-start) |
 | **功能** | [功能](#features)和[使用指南](#user-guide) |
 | **尚未解决的问题** | [尚未解决的问题](#known-limits) |
 | **下一步要做的** | [下一步要做的](#roadmap) |
 | **同学试用** | [同学试用，以及我修复了什么](#peer-run) |
 | **仓库** | https://github.com/JerryXu52/Maya-Procedural-Route-Tool |
+
+<a href="https://youtu.be/hMpk0dLglDQ"><img src="https://img.youtube.com/vi/hMpk0dLglDQ/hqdefault.jpg" alt="演示视频：在 Maya 中用这个工具生成线缆、围栏和道路" width="480"></a>
 
 一个 Maya Python/Qt 插件：沿着由所拾取的物体、定位器、顶点或面组成的路径，生成实时更新的几何体。只需拾取一次路径，选择要生成的内容，之后移动路径上的任何东西，生成结果都会跟着变化。
 

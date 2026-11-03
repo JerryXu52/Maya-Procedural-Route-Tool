@@ -7,13 +7,15 @@
 | | |
 |---|---|
 | **App** | **Autodesk Maya**, as a Python/Qt plugin. Tested in Maya 2026 on macOS; needs Maya 2022 or later. |
-| **Demo video** | ▶ <!-- TODO: replace with the 1–3 minute screen recording link --> *Link coming soon* |
+| **Demo video** | ▶ [Watch the demo on YouTube](https://youtu.be/hMpk0dLglDQ) |
 | **Install and run** | [Install](#install), then [Quick start](#quick-start) |
 | **What it does** | [Features](#features) and the [User guide](#user-guide) |
 | **What doesn't work yet** | [What doesn't work yet](#known-limits) |
 | **What I'd build next** | [What I'd build next](#roadmap) |
 | **Peer run** | [Peer run, and what I fixed](#peer-run) |
 | **Repository** | https://github.com/JerryXu52/Maya-Procedural-Route-Tool |
+
+<a href="https://youtu.be/hMpk0dLglDQ"><img src="https://img.youtube.com/vi/hMpk0dLglDQ/hqdefault.jpg" alt="Demo video: building a cable, a fence and a road with the tool in Maya" width="480"></a>
 
 A Maya Python/Qt plugin that builds live geometry along a route of picked objects, locators, vertices or faces. Pick the route once, choose what to build, and move anything on the route afterwards: the build follows.
 
